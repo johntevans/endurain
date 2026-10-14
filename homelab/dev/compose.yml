@@ -1,0 +1,112 @@
+# Homelab fork: dev stack, run through homelab/dev/dev (not `docker compose`
+# directly — the script supplies ENDURAIN_DEV_ROOT, the .env and the seed).
+#
+#   :5173  Vite dev server — the frontend from THIS checkout, hot-reloaded,
+#          proxying /api to the backend. This is the URL to use.
+#   :8092  the backend directly — backend code from this checkout (auto-reload),
+#          plus the frontend baked into the endurain-dev:local image at its last
+#          build. A cheap check of the production build of the frontend.
+#
+# Whichever checkout last ran `dev up` is the one being served: the project
+# name is fixed, so a worktree's `dev up` repoints the containers at itself.
+#
+# Data lives OUTSIDE ~/code (in $ENDURAIN_DEV_ROOT, default
+# ~/.local/share/endurain-dev), because ~/code is a Kopia source and a seeded
+# copy of production is ~1.5 GB of nothing worth backing up.
+
+name: endurain-dev
+
+services:
+  backend:
+    container_name: endurain-dev-backend
+    image: endurain-dev:local
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+    env_file:
+      - ${ENDURAIN_DEV_ROOT:?run through homelab/dev/dev}/.env
+    environment:
+      # development = refresh cookie not Secure (so plain http on the LAN works),
+      # /docs and /redoc enabled, CORS widened to localhost:5173.
+      ENVIRONMENT: development
+      ENDURAIN_HOST: ${ENDURAIN_DEV_URL}
+      DB_HOST: postgres
+      BEHIND_PROXY: "false"
+      TZ: America/Los_Angeles
+      LOG_LEVEL: ${ENDURAIN_DEV_LOG_LEVEL:-info}
+      RATE_LIMIT_STORAGE_URI: redis://redis:6379/0
+      AUTH_SECURITY_STORAGE_URI: redis://redis:6379/0
+    entrypoint: ["/bin/sh", "/homelab/backend-dev.sh"]
+    volumes:
+      # Source over the image's copy, so edits apply without a rebuild. A change
+      # to backend/pyproject.toml or uv.lock still needs `dev rebuild`.
+      - ../../backend/app:/app/backend
+      # Same absolute data path as production: the DB stores file paths like
+      # /app/backend/data/activity_media/x.jpg, so this must not move.
+      - ${ENDURAIN_DEV_ROOT}/data:/app/backend/data
+      - ${ENDURAIN_DEV_ROOT}/logs:/app/backend/logs
+      - ./backend-dev.sh:/homelab/backend-dev.sh:ro
+    ports:
+      - "8092:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    container_name: endurain-dev-frontend
+    image: node:24-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf
+    working_dir: /src/frontend
+    environment:
+      HOMELAB_DEV_BACKEND: http://backend:8080
+    # npm ci only when package-lock.json changed since the last install, so a
+    # restart is seconds rather than a minute.
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        want=$$(sha256sum package-lock.json | cut -d' ' -f1)
+        if [ "$$(cat node_modules/.lock-sha 2>/dev/null)" != "$$want" ]; then
+          npm ci --ignore-scripts
+          echo "$$want" > node_modules/.lock-sha
+        fi
+        exec npx vite --config vite.config.homelab.ts
+    volumes:
+      - ../../frontend:/src/frontend
+      # Linux node_modules stay in a volume, never in the macOS checkout.
+      - node_modules:/src/frontend/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+  postgres:
+    container_name: endurain-dev-postgres
+    # Same image and digest as production (homelab-ops mac-mini/endurain).
+    image: docker.io/postgres:18@sha256:8ff36f3c66371cba71d20ceedccfc3de9669a68737607888c4ef0af93abe8e39
+    env_file:
+      - ${ENDURAIN_DEV_ROOT}/.env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U endurain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  redis:
+    container_name: endurain-dev-redis
+    image: redis:8-alpine@sha256:09160599abd229764c0fb44cb6be640294e1d360a54b19985ab4843dcf2d90f1
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  node_modules:

@@ -1,0 +1,4 @@
+# Homelab fork: mount points the dev stack (homelab/dev/) creates when it
+# bind-mounts its data and logs inside this source tree.
+/data/
+/logs/

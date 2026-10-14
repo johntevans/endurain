@@ -1,0 +1,115 @@
+# Homelab fork: test, then build and push the image that macmini runs.
+#
+# Every push to `homelab` that touches the app produces
+#   ghcr.io/johntevans/endurain:<upstream tag>-homelab-<short sha>   (immutable, deploy this by digest)
+#   ghcr.io/johntevans/endurain:homelab                              (moving, convenience only)
+# arm64 only: the one consumer is the Mac mini under OrbStack.
+#
+# Deployment is NOT automatic. The image is pinned by digest in homelab-ops
+# (mac-mini/endurain/docker-compose.yml); see homelab/README.md for the steps.
+
+name: Homelab image
+
+on:
+  push:
+    branches:
+      - homelab
+    paths:
+      - backend/**
+      - frontend/**
+      - docker/**
+      - .github/workflows/homelab-image.yml
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test-backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          working-directory: backend
+      - name: Sync dependencies
+        working-directory: backend
+        run: uv sync --frozen --no-dev --group test --no-install-project
+      - name: Check auth import boundaries
+        working-directory: backend
+        run: PYTHONPATH=app uv run --no-sync lint-imports
+      - name: Run tests
+        working-directory: backend
+        run: uv run --no-sync pytest
+
+  test-frontend:
+    name: Frontend type-check and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Type check (vue-tsc)
+        working-directory: frontend
+        run: npm run type-check
+      - name: Unit tests
+        working-directory: frontend
+        run: npx vitest run
+
+  build:
+    name: Build and push arm64 image
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # tags, for the upstream version in the image tag
+
+      - name: Work out tags
+        id: tags
+        run: |
+          set -eu
+          base=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-homelab*')
+          tag="${base}-homelab-${GITHUB_SHA::7}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Image tag: $tag" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log in to GitHub Container Registry
+        env:
+          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$REGISTRY_PASSWORD" | docker login --username "${{ github.actor }}" --password-stdin ghcr.io
+
+      - name: Build and push
+        id: push
+        run: |
+          set -eu
+          docker buildx build \
+            --platform linux/arm64 \
+            --file docker/Dockerfile \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.version=${{ steps.tags.outputs.tag }}" \
+            --tag "${IMAGE_NAME}:${{ steps.tags.outputs.tag }}" \
+            --tag "${IMAGE_NAME}:homelab" \
+            --metadata-file /tmp/metadata.json \
+            --push \
+            .
+          digest=$(python3 -c "import json;print(json.load(open('/tmp/metadata.json'))['containerimage.digest'])")
+          {
+            echo ""
+            echo "Pin in homelab-ops mac-mini/endurain/docker-compose.yml:"
+            echo '```'
+            echo "image: ${IMAGE_NAME}:${{ steps.tags.outputs.tag }}@${digest}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
