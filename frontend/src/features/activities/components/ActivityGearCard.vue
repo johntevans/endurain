@@ -5,6 +5,7 @@ import { RouterLink } from 'vue-router'
 import { Pencil, Plus, Trash2 } from '@lucide/vue'
 
 import type { Activity } from '@/features/activities/types'
+import type { Units } from '@/features/activities/utils/format'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -19,10 +20,13 @@ import {
 } from '@/features/activities/composables/useActivityDetail'
 import { activityTypeToGearType } from '@/features/activities/utils/activityType'
 import { useGearQuery } from '@/features/gears/composables/useGears'
+import { metersToDisplayDistance } from '@/features/gears/utils/format'
 
 const props = defineProps<{
   /** The activity whose gear association is shown and (owner-only) edited. */
   activity: Activity
+  /** The viewer's measurement system, for the gear's total distance. */
+  units: Units
 }>()
 
 const { t } = useI18n()
@@ -35,8 +39,19 @@ const gearId = computed(() => props.activity.gearId)
 // The currently associated gear, for its nickname + deep link. Gated by
 // useGearQuery on a valid id, so it stays idle when no gear is set.
 const { data: currentGear } = useGearQuery(gearId)
+// The gear's lifetime distance (initial offset plus every assigned activity,
+// this one included), e.g. "412.3 mi"; `null` until the detail has loaded.
+const currentGearDistance = computed(() => {
+  if (!currentGear.value) {
+    return null
+  }
+  const value = metersToDisplayDistance(currentGear.value.totalDistance, props.units)
+  const unit = props.units === 'imperial' ? t('gears.unitMi') : t('gears.unitKm')
+  return `${value} ${unit}`
+})
 const optionsQuery = useActivityGearOptionsQuery(gearType)
-const options = computed(() => optionsQuery.data.value ?? [])
+// Only active (non-retired) gear can be newly assigned to an activity.
+const options = computed(() => (optionsQuery.data.value ?? []).filter((gear) => gear.active))
 
 const setGearMutation = useSetActivityGearMutation()
 const isSaving = computed(() => setGearMutation.isPending.value)
@@ -50,10 +65,12 @@ const selectedGearId = ref<number | null>(props.activity.gearId)
 const showCard = computed(() => gearType.value !== null || gearId.value !== null)
 const canSubmit = computed(() => selectedGearId.value !== null)
 
-// Re-seed the picker with the activity's current gear each time it opens.
+// Re-seed the picker with the activity's current gear each time it opens,
+// falling back to the placeholder when that gear is retired (not listed).
 watch(isPickerOpen, (open) => {
   if (open) {
-    selectedGearId.value = props.activity.gearId
+    const currentId = props.activity.gearId
+    selectedGearId.value = options.value.some((gear) => gear.id === currentId) ? currentId : null
   }
 })
 
@@ -114,6 +131,7 @@ async function removeGear(): Promise<void> {
       class="self-start text-body text-brand hover:underline"
     >
       {{ currentGear?.nickname ?? t('activities.gear.loading') }}
+      <span v-if="currentGearDistance" class="text-hint">({{ currentGearDistance }})</span>
     </RouterLink>
 
     <div v-else class="flex flex-col items-start gap-3">

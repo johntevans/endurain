@@ -295,7 +295,7 @@ const notFound = computed(() => !isPending.value && !isError.value && activity.v
         :is-owner="isOwner"
       />
 
-      <ActivityGearCard v-if="isOwner" :activity="activity" />
+      <ActivityGearCard v-if="isOwner" :activity="activity" :units="units" />
 
       <div v-if="chartPanels.length > 0" class="grid gap-3 lg:grid-cols-2">
         <template v-for="panel in chartPanels" :key="panel.key">
