@@ -121,7 +121,7 @@ the schema (see `backend/tests/homelab/test_activity_tags.py`).
 
 | Table | Holds | Revision |
 |---|---|---|
-| `homelab.activity_tags` | Activity tags: `(activity_id → activities.id ON DELETE CASCADE, tag ∈ race/workout/long_run, created_at)`, PK `(activity_id, tag)` | `hl0001` |
+| `homelab.activity_tags` | Activity tags: `(activity_id → activities.id ON DELETE CASCADE, tag ∈ race/workout/long_run/nsm_short/nsm_medium/nsm_long, created_at)`, PK `(activity_id, tag)` | `hl0001`, CHECK widened by `hl0002` |
 
 The tag keys match Strava's run `workout_type` (1 race, 2 long run, 3 workout). A later
 Strava-sourced comparison should store Strava's value in its own table (for example

@@ -36,7 +36,7 @@ def test_config_points_at_the_fork_environment():
 
 def test_single_linear_chain_separate_from_upstream():
     fork = ScriptDirectory.from_config(db_migrations.build_config())
-    assert fork.get_heads() == ["hl0001"]
+    assert fork.get_heads() == ["hl0002"]
     assert fork.get_base() == "hl0001"
 
     upstream_config = Config()
@@ -56,6 +56,10 @@ def test_upgrade_creates_the_schema_first_and_keeps_its_version_table_there():
     assert f"CREATE TABLE {SCHEMA}.activity_tags" in sql
     assert "REFERENCES activities (id) ON DELETE CASCADE" in sql
     assert "CHECK (tag IN ('race', 'workout', 'long_run'))" in sql
+    # hl0002 widens that CHECK with the Norwegian Singles Method tags.
+    widened = "CHECK (tag IN ('race', 'workout', 'long_run', 'nsm_short', 'nsm_medium', 'nsm_long'))"
+    assert sql.index("CHECK (tag IN ('race', 'workout', 'long_run'))") < sql.index(widened)
+    assert "UPDATE homelab.alembic_version SET version_num='hl0002'" in sql
     assert f"INSERT INTO {SCHEMA}.alembic_version" in sql
     # Never touches upstream's version table or tables.
     assert "public." not in sql

@@ -4,6 +4,9 @@
   "labels": {
     "race": "Race",
     "workout": "Workout",
-    "longRun": "Long Run"
+    "longRun": "Long Run",
+    "nsmShort": "NSM Short",
+    "nsmMedium": "NSM Medium",
+    "nsmLong": "NSM Long"
   }
 }

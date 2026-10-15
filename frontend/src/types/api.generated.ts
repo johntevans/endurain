@@ -5917,13 +5917,18 @@ export interface components {
          * ActivityTagKey
          * @description The fixed set of activity tags, as stored.
          *
-         *     Keys are stable identifiers; labels are the frontend's job. The set
-         *     deliberately matches Strava's run ``workout_type`` (1 race, 2 long run,
-         *     3 workout) so a later Strava-sourced value can be compared against the
-         *     user's own tags without a mapping table.
+         *     Keys are stable identifiers; labels are the frontend's job. The first
+         *     three match Strava's run ``workout_type`` (1 race, 2 long run, 3 workout)
+         *     so a later Strava-sourced value can be compared against the user's own
+         *     tags without a mapping table. The ``nsm_*`` tags mark Norwegian Singles
+         *     Method sub-threshold sessions by rep length: short 2-4 min, medium
+         *     5-7 min, long 8 min and up.
+         *
+         *     Adding a key also needs a fork migration widening the table's CHECK
+         *     constraint (see ``hl0002_nsm_activity_tags``).
          * @enum {string}
          */
-        ActivityTagKey: "race" | "workout" | "long_run";
+        ActivityTagKey: "race" | "workout" | "long_run" | "nsm_short" | "nsm_medium" | "nsm_long";
         /**
          * ActivityTagsRead
          * @description Tags of one activity.
@@ -5947,7 +5952,7 @@ export interface components {
         ActivityTagsUpdate: {
             /**
              * Tags
-             * @description 0-3 tags; duplicates are ignored
+             * @description Up to one of each tag; duplicates are ignored
              */
             tags: components["schemas"]["ActivityTagKey"][];
         };

@@ -93,9 +93,16 @@ def _tags_of(db: Session, activity_id: int) -> list[str]:
 
 
 class TestSchema:
-    def test_canonical_order_is_race_workout_long_run(self):
-        assert [t.value for t in ActivityTagKey] == ["race", "workout", "long_run"]
-        assert sort_tags({"long_run", "race", "workout"}) == list(ActivityTagKey)
+    def test_canonical_order_is_race_workout_long_run_then_nsm(self):
+        assert [t.value for t in ActivityTagKey] == [
+            "race",
+            "workout",
+            "long_run",
+            "nsm_short",
+            "nsm_medium",
+            "nsm_long",
+        ]
+        assert sort_tags({t.value for t in reversed(ActivityTagKey)}) == list(ActivityTagKey)
 
 
 class TestSetActivityTags:
@@ -113,6 +120,14 @@ class TestSetActivityTags:
 
         assert tags_crud.set_activity_tags(1, [], OWNER, db).tags == []
         assert _tags_of(db, 1) == []
+
+    def test_every_tag_at_once(self, db):
+        db.add(_activity(1))
+        db.commit()
+
+        result = tags_crud.set_activity_tags(1, [t.value for t in reversed(ActivityTagKey)], OWNER, db)
+        assert result.tags == list(ActivityTagKey)
+        assert _tags_of(db, 1) == sorted(t.value for t in ActivityTagKey)
 
     def test_kept_tags_keep_their_created_at(self, db):
         db.add(_activity(1))
@@ -225,6 +240,7 @@ class TestListFilter:
         _tag(db, 2, "race")
         _tag(db, 3, "long_run", "workout")
         _tag(db, 4, "race", "long_run", "workout")
+        _tag(db, 5, "workout", "nsm_short")
         _tag(db, 6, "race")  # another user's
         return db
 
@@ -244,7 +260,10 @@ class TestListFilter:
             (["race", "long_run"], [4, 1]),
             (["long_run", "race", "race"], [4, 1]),
             (["race", "long_run", "workout"], [4]),
-            (["workout"], [4, 3]),
+            (["workout"], [5, 4, 3]),
+            (["nsm_short"], [5]),
+            (["nsm_short", "workout"], [5]),
+            (["nsm_short", "race"], []),
             (None, [5, 4, 3, 2, 1]),
             ([], [5, 4, 3, 2, 1]),
         ],
@@ -340,7 +359,7 @@ class TestRoutes:
 
     @pytest.mark.parametrize(
         "body",
-        [{"tags": ["tempo"]}, {"tags": ["race", "race", "race", "race"]}, {}, {"tags": [], "extra": 1}],
+        [{"tags": ["tempo"]}, {"tags": ["race"] * 7}, {}, {"tags": [], "extra": 1}],
     )
     def test_put_validates_body(self, mock_db, body):
         assert TestClient(_build_app(mock_db)).put("/homelab/activity_tags/4", json=body).status_code == 422

@@ -56,6 +56,16 @@ describe('activity tag utils', () => {
     ])
   })
 
+  it('puts the NSM tags after the Strava-style ones, short to long', () => {
+    expect(sortActivityTags(['nsm_long', 'workout', 'nsm_short', 'nsm_medium'])).toEqual([
+      'workout',
+      'nsm_short',
+      'nsm_medium',
+      'nsm_long',
+    ])
+    expect(parseActivityTagsQuery('nsm_medium,workout')).toEqual(['workout', 'nsm_medium'])
+  })
+
   it('round-trips the URL query param and ignores junk', () => {
     expect(parseActivityTagsQuery('long_run,race,nope')).toEqual(['race', 'long_run'])
     expect(parseActivityTagsQuery(['race'])).toEqual([])
@@ -175,7 +185,7 @@ describe('ActivityTagBadges', () => {
 })
 
 describe('ActivityTagCheckboxGroup', () => {
-  it('lists Race, Workout, Long Run and emits the selection in display order', async () => {
+  it('lists every tag and emits the selection in display order', async () => {
     const wrapper = mount(ActivityTagCheckboxGroup, {
       props: { legend: 'Activity Tags', modelValue: ['long_run'] as ActivityTagKey[] },
       global: { plugins: [i18n] },
@@ -185,6 +195,9 @@ describe('ActivityTagCheckboxGroup', () => {
       'Race',
       'Workout',
       'Long Run',
+      'NSM Short',
+      'NSM Medium',
+      'NSM Long',
     ])
     expect((wrapper.find('input[data-tag="long_run"]').element as HTMLInputElement).checked).toBe(
       true,
