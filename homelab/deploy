@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# Deploy a homelab image to production on macmini: the "Release to production" steps in
+# homelab/README.md, end to end.
+#
+#   homelab/deploy                 newest commit on origin/homelab with a successful image build
+#   homelab/deploy <commit>        that commit's image (also how you roll back to an older one)
+#   homelab/deploy --dry-run [...] resolve the image and check everything, change nothing
+#
+# Steps: wait for a running "Homelab image" build -> resolve tag and digest -> check that
+# production's compose file still matches homelab-ops -> pin the image in homelab-ops, commit,
+# push -> on macmini: pg dump, copy the compose file, pull, up -d -> wait for healthy, report
+# migrations and new errors from the startup log -> probe the API on both hostnames.
+#
+# It never rolls back on its own: a fork migration may already have run. The deploy log entry
+# in homelab-ops mac-mini/endurain/README.md is still written by hand afterwards.
+set -euo pipefail
+
+REPO=johntevans/endurain
+WORKFLOW=homelab-image.yml
+IMAGE=ghcr.io/johntevans/endurain
+OPS=${HOMELAB_OPS:-$HOME/code/homelab-ops}
+COMPOSE_REL=mac-mini/endurain/docker-compose.yml
+SSH_HOST=${ENDURAIN_SSH_HOST:-macmini}
+REMOTE_DIR='~/Server/endurain'
+REMOTE_PATH='export PATH=$PATH:/usr/local/bin:/opt/homebrew/bin'
+DUMP_HOOK='~/Server/kopia/hooks/pre-endurain-pgdump.sh'
+PROBE_HOSTS=(https://tempo.thegainzlab.dev http://192.168.4.82:8091)
+HEALTH_TIMEOUT=180
+# Startup errors that predate the fork and say nothing about the deploy (see homelab-ops README).
+KNOWN_ERRORS='Display name is not set'
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+dry_run=0
+target=
+
+die() { echo "deploy: $*" >&2; exit 1; }
+step() { printf '\n==> %s\n' "$*"; }
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --dry-run) dry_run=1 ;;
+    -h | --help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*) die "unknown option $1" ;;
+    *) [ -z "$target" ] || die "one commit at most"; target=$1 ;;
+  esac
+  shift
+done
+
+for cmd in gh git docker ssh scp curl; do
+  command -v "$cmd" >/dev/null || die "$cmd is not installed"
+done
+[ -d "$OPS/.git" ] || die "homelab-ops checkout not found at $OPS (set HOMELAB_OPS)"
+
+# --- 1. Which commit, and is its image built? -------------------------------------------
+step "Resolving the image"
+git -C "$ROOT" fetch -q origin homelab
+
+watch_run() {
+  echo "Waiting for image build run $1 ..."
+  gh run watch "$1" -R "$REPO" --exit-status >/dev/null || die "image build run $1 failed: gh run view $1 -R $REPO"
+}
+
+if [ -z "$target" ]; then
+  # A build still running on homelab is the commit the user most likely means.
+  for id in $(gh run list -R "$REPO" -w "$WORKFLOW" -b homelab -L 5 \
+    --json databaseId,status -q '.[] | select(.status != "completed") | .databaseId'); do
+    watch_run "$id"
+  done
+  sha=$(gh run list -R "$REPO" -w "$WORKFLOW" -b homelab -s success -L 1 --json headSha -q '.[0].headSha')
+  [ -n "$sha" ] || die "no successful image build on homelab"
+else
+  sha=$(git -C "$ROOT" rev-parse --verify "$target^{commit}" 2>/dev/null) || die "unknown commit $target"
+  git -C "$ROOT" merge-base --is-ancestor "$sha" origin/homelab || die "$target is not on origin/homelab (push it first)"
+  run=$(gh run list -R "$REPO" -w "$WORKFLOW" -c "$sha" -L 1 --json databaseId,status,conclusion \
+    -q '.[] | "\(.databaseId) \(.status) \(.conclusion)"')
+  [ -n "$run" ] || die "no image build for ${sha::7}: CI only builds commits that touch backend/, frontend/ or docker/"
+  read -r run_id run_status run_conclusion <<<"$run"
+  if [ "$run_status" != completed ]; then
+    watch_run "$run_id"
+  elif [ "$run_conclusion" != success ]; then
+    die "image build for ${sha::7} ended '$run_conclusion': gh run view $run_id -R $REPO"
+  fi
+fi
+
+base=$(git -C "$ROOT" describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-homelab*' "$sha")
+tag="$base-homelab-${sha::7}"
+digest=$(docker buildx imagetools inspect "$IMAGE:$tag" 2>/dev/null | awk '/^Digest:/ {print $2}')
+[ -n "$digest" ] || die "$IMAGE:$tag not found in the registry"
+new_ref="$IMAGE:$tag@$digest"
+echo "Commit:  $(git -C "$ROOT" log -1 --format='%h %s' "$sha")"
+echo "Image:   $new_ref"
+
+# --- 2. homelab-ops and production agree? -----------------------------------------------
+step "Checking homelab-ops and production"
+[ -z "$(git -C "$OPS" status --porcelain -- "$COMPOSE_REL")" ] || die "$OPS/$COMPOSE_REL has uncommitted changes"
+git -C "$OPS" pull -q --ff-only || die "could not fast-forward homelab-ops"
+compose="$OPS/$COMPOSE_REL"
+old_ref=$(grep -oE "image: +$IMAGE:[^[:space:]]+|image: +ghcr.io/endurain-project/endurain:[^[:space:]]+" "$compose" | awk '{print $2}')
+[ "$(printf '%s\n' "$old_ref" | grep -c .)" = 1 ] || die "expected exactly one Endurain image line in $COMPOSE_REL"
+ssh -o BatchMode=yes "$SSH_HOST" "cat $REMOTE_DIR/docker-compose.yml" | diff -q - "$compose" >/dev/null ||
+  die "production's docker-compose.yml differs from homelab-ops; reconcile before deploying (ssh $SSH_HOST cat $REMOTE_DIR/docker-compose.yml | diff - $compose)"
+running=$(ssh -o BatchMode=yes "$SSH_HOST" "$REMOTE_PATH; docker inspect endurain --format '{{.Config.Image}}'" 2>/dev/null || true)
+echo "Pinned:  $old_ref"
+echo "Running: ${running:-<no endurain container>}"
+
+if [ "$old_ref" = "$new_ref" ] && [ "$running" = "$new_ref" ]; then
+  echo "Already deployed. Nothing to do."
+  exit 0
+fi
+if [ "$dry_run" = 1 ]; then
+  echo "Dry run: would pin, commit and push homelab-ops, dump the DB, pull and restart. Stopping."
+  exit 0
+fi
+
+# --- 3. Pin and record in homelab-ops ---------------------------------------------------
+if [ "$old_ref" != "$new_ref" ]; then
+  step "Pinning $tag in homelab-ops"
+  sed -i.deploy-bak "s|$old_ref|$new_ref|" "$compose" && rm -f "$compose.deploy-bak"
+  git -C "$OPS" add -- "$COMPOSE_REL"
+  git -C "$OPS" commit -q -m "endurain: deploy $tag" -m "Previous image: $old_ref"
+  git -C "$OPS" push -q
+  git -C "$OPS" log -1 --oneline
+fi
+
+# --- 4. Deploy on macmini ---------------------------------------------------------------
+step "Taking a database dump on $SSH_HOST"
+ssh -o BatchMode=yes "$SSH_HOST" "$REMOTE_PATH; $DUMP_HOOK" || die "the pre-deploy dump failed; nothing on $SSH_HOST was changed"
+
+step "Pulling and restarting"
+started=$(ssh -o BatchMode=yes "$SSH_HOST" 'date -u +%Y-%m-%dT%H:%M:%SZ')
+scp -q "$compose" "$SSH_HOST:Server/endurain/docker-compose.yml"
+ssh -o BatchMode=yes "$SSH_HOST" "$REMOTE_PATH; cd $REMOTE_DIR && docker compose pull -q endurain && docker compose up -d 2>&1 | tail -3"
+
+step "Waiting for healthy (up to ${HEALTH_TIMEOUT}s)"
+health=$(ssh -o BatchMode=yes "$SSH_HOST" "$REMOTE_PATH
+  for i in \$(seq 1 $((HEALTH_TIMEOUT / 3))); do
+    s=\$(docker inspect -f '{{.State.Health.Status}}' endurain 2>/dev/null)
+    [ \"\$s\" = healthy ] && break; [ \"\$s\" = unhealthy ] && break; sleep 3
+  done; echo \"\$s\"")
+running=$(ssh -o BatchMode=yes "$SSH_HOST" "$REMOTE_PATH; docker inspect endurain --format '{{.Config.Image}}'")
+log=$(ssh -o BatchMode=yes "$SSH_HOST" "$REMOTE_PATH; docker logs --since $started endurain 2>&1")
+echo "Health:  $health"
+echo "Running: $running"
+
+migrations=$(printf '%s\n' "$log" | grep -oE 'Running upgrade [^"]*' || true)
+errors=$(printf '%s\n' "$log" | grep -E '"level": "(ERROR|CRITICAL)"|Traceback' | grep -vE "$KNOWN_ERRORS" || true)
+echo "Migrations run: ${migrations:-none}"
+if [ -n "$errors" ]; then
+  echo "New errors in the startup log ($(printf '%s\n' "$errors" | wc -l | tr -d ' ')):"
+  printf '%s\n' "$errors" | cut -c1-300 | head -5
+fi
+
+# --- 5. Probes ---------------------------------------------------------------------------
+step "Probing"
+failed=0
+for h in "${PROBE_HOSTS[@]}"; do
+  settings=$(curl -s -o /dev/null -w '%{http_code}' "$h/api/v1/public/server_settings")
+  login=$(curl -s -o /dev/null -w '%{http_code}' -X POST -d 'username=deploy-probe&password=x' "$h/api/v1/auth/login")
+  echo "$h: server_settings $settings, rejected login $login"
+  [ "$settings" = 200 ] && [ "$login" = 401 ] || failed=1
+done
+
+ok=1
+[ "$health" = healthy ] || ok=0
+[ "$running" = "$new_ref" ] || ok=0
+[ "$failed" = 0 ] || ok=0
+step "Summary"
+echo "Deployed: $tag"
+echo "Previous: $old_ref"
+if [ "$ok" = 1 ]; then
+  echo "Result:   OK${errors:+ (but see the startup errors above)}"
+  echo "Next: add the deploy log entry to $OPS/mac-mini/endurain/README.md and push it."
+else
+  echo "Result:   FAILED. Logs: ssh $SSH_HOST 'cd $REMOTE_DIR && docker compose logs --tail 200 endurain'"
+  echo "Roll back by redeploying the previous image (homelab/deploy <its commit>), or set the line"
+  echo "back by hand. A fork migration that already ran stays; see homelab/README.md -> Database."
+  exit 1
+fi

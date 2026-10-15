@@ -15,10 +15,11 @@ first**: branches, the database rule, the dev stack and how a change reaches pro
 - **Try changes in the dev stack** (`homelab/dev/dev up`, then
   `http://johns-mac-mini-old.local:5173`). It holds a copy of production with the Garmin and
   Strava tokens removed. Don't put them back.
-- **Production is not touched from here.** It runs on `macmini` from an image pinned by digest
-  in homelab-ops `mac-mini/endurain/docker-compose.yml`; deploying is the release steps in
-  homelab/README.md, done deliberately. Reading production (`ssh macmini`, its logs, a
-  read-only `psql`) is fine.
+- **Production changes only when the user asks for a deploy.** It runs on `macmini` from an
+  image pinned by digest in homelab-ops `mac-mini/endurain/docker-compose.yml`. When the user
+  asks to deploy, redeploy or roll back, use the `/deploy-homelab` skill, which runs
+  `homelab/deploy`. Don't deploy on your own initiative. Reading production (`ssh macmini`,
+  its logs, a read-only `psql`) is fine.
 - Operational knowledge about the deployment (Garmin linking traps, the `.dev` hostname's
   `/env.js` trick, the Strava import bugs, monitoring) is in homelab-ops
   `mac-mini/endurain/README.md`, cloned at `~/code/homelab-ops`.

@@ -167,6 +167,14 @@ Log in with your **production** username and password; it is a copy of the produ
 
 ## Release to production
 
+**`homelab/deploy` does steps 2–4** once the push has built an image: it waits for the build,
+pins the tag and digest in homelab-ops (commit and push), takes the dump, pulls, restarts,
+waits for healthy, lists the migrations that ran and any new startup errors, and probes both
+hostnames. `homelab/deploy <commit>` deploys or rolls back to that commit's image, and
+`--dry-run` checks without changing anything. It refuses to run if production's compose file
+has drifted from homelab-ops. In a Claude session, `/deploy-homelab` wraps it. The steps by
+hand:
+
 1. Push to `homelab`. The **Homelab image** workflow runs the backend and frontend tests and
    then pushes `ghcr.io/johntevans/endurain:<upstream tag>-homelab-<sha7>` plus a moving
    `homelab` tag. The run summary prints the exact `image:` line to use, with its digest.
