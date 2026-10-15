@@ -5668,6 +5668,10 @@ export interface components {
             enhanced_max_speed?: number | null;
             /** Enhanced Min Altitude */
             enhanced_min_altitude?: number | null;
+            /** Grade Adjusted Avg Pace */
+            grade_adjusted_avg_pace?: number | null;
+            /** Grade Adjusted Avg Speed */
+            grade_adjusted_avg_speed?: number | null;
             /** Id */
             id: number;
             /** Intensity */

@@ -166,6 +166,8 @@ export function mapActivityLap(dto: ActivityLapDto): ActivityLap {
     totalTimerTime: dto.total_timer_time ?? null,
     enhancedAvgPace: dto.enhanced_avg_pace ?? null,
     enhancedAvgSpeed: dto.enhanced_avg_speed ?? null,
+    gradeAdjustedAvgPace: dto.grade_adjusted_avg_pace ?? null,
+    gradeAdjustedAvgSpeed: dto.grade_adjusted_avg_speed ?? null,
     totalAscent: dto.total_ascent ?? null,
     avgHeartRate: dto.avg_heart_rate ?? null,
     avgCadence: dto.avg_cadence ?? null,

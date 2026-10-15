@@ -5,8 +5,12 @@ from sqlalchemy.orm import Session
 
 import activities.activity.crud as activity_crud
 import activities.activity.models as activity_models
+import activities.activity.schema as activity_schema
+import activities.activity_laps.gap as activity_laps_gap
 import activities.activity_laps.models as activity_laps_models
 import activities.activity_laps.schema as activity_laps_schema
+import activities.activity_streams.constants as activity_streams_constants
+import activities.activity_streams.models as activity_streams_models
 import core.decorators as core_decorators
 import server_settings.utils as server_settings_utils
 
@@ -70,6 +74,62 @@ def _to_read_schema(
     return schema
 
 
+def _attach_grade_adjusted_pace(
+    laps: list[activity_laps_schema.ActivityLapsRead],
+    activity: activity_schema.Activity,
+    token_user_id: int | None,
+    db: Session,
+) -> None:
+    """
+    Fill in grade-adjusted pace/speed on laps from the activity's streams.
+
+    Only applies to running and walking activities that have both an elevation
+    and a velocity stream. For non-owners it is skipped when elevation, speed
+    or pace is hidden, since GAP is derived from them.
+
+    Args:
+        laps: Lap read schemas to update in place.
+        activity: The parent activity.
+        token_user_id: The requesting user ID, or ``None`` for public access.
+        db: Database session.
+    """
+    if activity.activity_type not in activity_laps_gap.GAP_ACTIVITY_TYPES:
+        return
+    if token_user_id != activity.user_id and (activity.hide_elevation or activity.hide_speed or activity.hide_pace):
+        return
+
+    stmt = select(activity_streams_models.ActivityStreams).where(
+        activity_streams_models.ActivityStreams.activity_id == activity.id,
+        activity_streams_models.ActivityStreams.stream_type.in_(
+            (
+                activity_streams_constants.STREAM_TYPE_ELEVATION,
+                activity_streams_constants.STREAM_TYPE_SPEED,
+            )
+        ),
+    )
+    waypoints_by_type = {stream.stream_type: stream.stream_waypoints for stream in db.scalars(stmt).all()}
+    velocity = waypoints_by_type.get(activity_streams_constants.STREAM_TYPE_SPEED)
+    elevation = waypoints_by_type.get(activity_streams_constants.STREAM_TYPE_ELEVATION)
+    if not velocity or not elevation:
+        return
+
+    ordered = sorted(laps, key=lambda lap: lap.start_time)
+    ratios = activity_laps_gap.compute_laps_gap_ratio(
+        [(lap.start_time, lap.total_elapsed_time) for lap in ordered],
+        velocity,
+        elevation,
+    )
+    for lap, ratio in zip(ordered, ratios, strict=True):
+        speed = lap.enhanced_avg_speed
+        if speed is None and lap.enhanced_avg_pace:
+            speed = 1 / lap.enhanced_avg_pace
+        if ratio is None or not speed or speed <= 0:
+            continue
+        gap_speed = speed * ratio
+        lap.grade_adjusted_avg_speed = gap_speed
+        lap.grade_adjusted_avg_pace = 1 / gap_speed
+
+
 @core_decorators.handle_db_errors
 def get_activity_laps(
     activity_id: int,
@@ -107,7 +167,9 @@ def get_activity_laps(
     if not activity_laps:
         return None
 
-    return [_to_read_schema(lap, activity.timezone) for lap in activity_laps]
+    laps = [_to_read_schema(lap, activity.timezone) for lap in activity_laps]
+    _attach_grade_adjusted_pace(laps, activity, token_user_id, db)
+    return laps
 
 
 @core_decorators.handle_db_errors
@@ -212,7 +274,9 @@ def get_public_activity_laps(
     if not activity_laps:
         return None
 
-    return [_to_read_schema(lap, activity.timezone) for lap in activity_laps]
+    laps = [_to_read_schema(lap, activity.timezone) for lap in activity_laps]
+    _attach_grade_adjusted_pace(laps, activity, None, db)
+    return laps
 
 
 @core_decorators.handle_db_errors

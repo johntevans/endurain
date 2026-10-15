@@ -155,6 +155,10 @@ class ActivityLapsRead(ActivityLapsBase):
         id: Lap primary key.
         activity_id: Parent activity ID.
         start_time: Lap start time as datetime.
+        grade_adjusted_avg_pace: Grade-adjusted
+            average pace (s/m), computed on read.
+        grade_adjusted_avg_speed: Grade-adjusted
+            average speed (m/s), computed on read.
         timezone: Activity timezone for
             serialization (excluded from output).
     """
@@ -162,6 +166,8 @@ class ActivityLapsRead(ActivityLapsBase):
     id: StrictInt
     activity_id: StrictInt
     start_time: datetime  # type: ignore[assignment]
+    grade_adjusted_avg_pace: StrictFloat | None = None
+    grade_adjusted_avg_speed: StrictFloat | None = None
     timezone: StrictStr | None = Field(default=None, exclude=True)
 
     model_config = ConfigDict(

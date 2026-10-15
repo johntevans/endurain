@@ -5,7 +5,12 @@ import { useI18n } from 'vue-i18n'
 import type { Activity, ActivityLap } from '@/features/activities/types'
 import type { Units } from '@/features/activities/utils/format'
 
-import { activityTypeIsSwimming, lapCyclesLabelKey } from '@/features/activities/utils/activityType'
+import {
+  activityTypeIsRunning,
+  activityTypeIsSwimming,
+  activityTypeIsWalking,
+  lapCyclesLabelKey,
+} from '@/features/activities/utils/activityType'
 import {
   combineMetric,
   formatDistance,
@@ -37,6 +42,14 @@ const hasIntensity = computed(() => normalized.value.some((entry) => entry.lap.i
 // rests carry no intensity field, so gating on hasIntensity alone would hide the
 // active-total breakdown for swims — use this instead.
 const hasRest = computed(() => normalized.value.some((entry) => entry.isRest))
+// Grade-adjusted pace is computed server-side for running/walking laps that
+// have elevation and speed streams; show the column only when there is a value.
+const showGap = computed(
+  () =>
+    (activityTypeIsRunning(props.activity.activityType) ||
+      activityTypeIsWalking(props.activity.activityType)) &&
+    normalized.value.some((entry) => !entry.isRest && entry.lap.gradeAdjustedAvgPace !== null),
+)
 
 // Active-only totals, shown only when the activity distinguishes rest laps
 // (otherwise the header already covers the same numbers).
@@ -71,6 +84,7 @@ interface LapRow {
   tempo: string
   /** Relative-pace score (0–100), or `null` when the lap has no pace. */
   tempoScore: number | null
+  gap: string
   elevation: string
   strokeRate: string
   cycles: string
@@ -99,6 +113,14 @@ const rows = computed<LapRow[]>(() =>
             props.units,
           ),
       tempoScore: entry.isRest ? null : entry.normalizedScore,
+      gap: entry.isRest
+        ? '--'
+        : formatLapTempo(
+            lap.gradeAdjustedAvgPace,
+            lap.gradeAdjustedAvgSpeed,
+            props.activity.activityType,
+            props.units,
+          ),
       elevation:
         lap.totalAscent === null
           ? '--'
@@ -131,6 +153,9 @@ const rows = computed<LapRow[]>(() =>
             <th class="py-2 pe-3 font-medium">{{ t('activities.laps.distance') }}</th>
             <th class="py-2 pe-3 font-medium">{{ t('activities.laps.time') }}</th>
             <th class="py-2 pe-3 font-medium">{{ t('activities.laps.tempo') }}</th>
+            <th v-if="showGap" class="py-2 pe-3 font-medium" :title="t('activities.laps.gapHint')">
+              {{ t('activities.laps.gap') }}
+            </th>
             <th v-if="showElevation" class="py-2 pe-3 font-medium">
               {{ t('activities.laps.elevation') }}
             </th>
@@ -170,6 +195,7 @@ const rows = computed<LapRow[]>(() =>
                 />
               </span>
             </td>
+            <td v-if="showGap" class="py-2 pe-3 text-foreground">{{ row.gap }}</td>
             <td v-if="showElevation" class="py-2 pe-3 text-muted-foreground">
               {{ row.elevation }}
             </td>

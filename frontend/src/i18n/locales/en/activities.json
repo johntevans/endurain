@@ -106,6 +106,8 @@
     "distance": "Distance",
     "time": "Time",
     "tempo": "Pace / Speed",
+    "gap": "GAP",
+    "gapHint": "Grade-adjusted pace: the equivalent pace on flat ground for the same effort",
     "elevation": "Elevation",
     "strokeRate": "Stroke rate",
     "cycles": "Cycles",

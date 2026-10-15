@@ -110,6 +110,10 @@ export interface ActivityLap {
   enhancedAvgPace: number | null
   /** Average speed in metres per second. */
   enhancedAvgSpeed: number | null
+  /** Grade-adjusted average pace in seconds per metre (running/walking only). */
+  gradeAdjustedAvgPace: number | null
+  /** Grade-adjusted average speed in metres per second (running/walking only). */
+  gradeAdjustedAvgSpeed: number | null
   /** Ascent in metres. */
   totalAscent: number | null
   /** Average heart rate in bpm. */

@@ -149,6 +149,8 @@ describe('mapActivityLap', () => {
       total_distance: 1000,
       total_elapsed_time: 300,
       enhanced_avg_pace: 0.3,
+      grade_adjusted_avg_pace: 0.28,
+      grade_adjusted_avg_speed: 3.5,
       avg_heart_rate: 150,
     }
     expect(mapActivityLap(dto)).toMatchObject({
@@ -156,6 +158,8 @@ describe('mapActivityLap', () => {
       totalDistance: 1000,
       totalElapsedTime: 300,
       enhancedAvgPace: 0.3,
+      gradeAdjustedAvgPace: 0.28,
+      gradeAdjustedAvgSpeed: 3.5,
       avgHeartRate: 150,
     })
   })
