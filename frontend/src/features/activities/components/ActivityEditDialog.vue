@@ -13,6 +13,8 @@ import { Switch } from '@/components/ui/switch'
 import { useToasts } from '@/composables/useToasts'
 import { useEditActivityMutation } from '@/features/activities/composables/useActivityDetail'
 import { ACTIVITY_TYPE_LABEL_KEYS } from '@/features/activities/utils/activityType'
+import ActivityTagCheckboxGroup from '@/features/activityTags/components/ActivityTagCheckboxGroup.vue'
+import { useActivityTagsEditor } from '@/features/activityTags/composables/useActivityTags'
 
 const props = defineProps<{
   /** The activity being edited; seeds the form whenever the dialog opens. */
@@ -25,7 +27,8 @@ const { t } = useI18n()
 const toasts = useToasts()
 
 const editMutation = useEditActivityMutation()
-const isSaving = computed(() => editMutation.isPending.value)
+const tagsEditor = useActivityTagsEditor(() => props.activity.id, open) // homelab fork
+const isSaving = computed(() => editMutation.isPending.value || tagsEditor.isSaving.value)
 
 /** Projects an activity onto the editable form values. */
 function toFormValues(activity: Activity): ActivityEditInput {
@@ -99,6 +102,7 @@ async function submit(): Promise<void> {
   }
   try {
     await editMutation.mutateAsync({ id: props.activity.id, input: { ...form } })
+    await tagsEditor.save() // homelab fork: only sends a request when tags changed
     open.value = false
     toasts.success(t('activities.edit.success'))
   } catch {
@@ -146,6 +150,12 @@ async function submit(): Promise<void> {
           </select>
         </template>
       </FormField>
+
+      <ActivityTagCheckboxGroup
+        v-model="tagsEditor.selected.value"
+        :legend="t('activityTags.title')"
+        :disabled="isSaving || tagsEditor.isLoading.value"
+      />
 
       <FormField :label="t('activities.edit.description')">
         <template #default="{ fieldId }">

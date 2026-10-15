@@ -2647,6 +2647,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/homelab/activity_tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Activities Tags
+         * @description Tags for a batch of activities (e.g. one list page), visibility-checked.
+         */
+        get: operations["read_activities_tags_api_v1_homelab_activity_tags_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/homelab/activity_tags/{activity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit Activity Tags
+         * @description Replace an activity's tags. Only the owner may; others get 404.
+         */
+        put: operations["edit_activity_tags_api_v1_homelab_activity_tags__activity_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/idp": {
         parameters: {
             query?: never;
@@ -4193,6 +4233,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/homelab/activity_tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Public Activities Tags
+         * @description Tags for public, shareable activities; others are left out.
+         */
+        get: operations["read_public_activities_tags_api_v1_public_homelab_activity_tags_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/idp": {
         parameters: {
             query?: never;
@@ -5630,6 +5690,10 @@ export interface components {
          *         id: Lap primary key.
          *         activity_id: Parent activity ID.
          *         start_time: Lap start time as datetime.
+         *         grade_adjusted_avg_pace: Grade-adjusted
+         *             average pace (s/m), computed on read.
+         *         grade_adjusted_avg_speed: Grade-adjusted
+         *             average speed (m/s), computed on read.
          *         timezone: Activity timezone for
          *             serialization (excluded from output).
          */
@@ -5848,6 +5912,44 @@ export interface components {
             zone_percentages?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * ActivityTagKey
+         * @description The fixed set of activity tags, as stored.
+         *
+         *     Keys are stable identifiers; labels are the frontend's job. The set
+         *     deliberately matches Strava's run ``workout_type`` (1 race, 2 long run,
+         *     3 workout) so a later Strava-sourced value can be compared against the
+         *     user's own tags without a mapping table.
+         * @enum {string}
+         */
+        ActivityTagKey: "race" | "workout" | "long_run";
+        /**
+         * ActivityTagsRead
+         * @description Tags of one activity.
+         */
+        ActivityTagsRead: {
+            /**
+             * Activity Id
+             * @description Activity ID
+             */
+            activity_id: number;
+            /**
+             * Tags
+             * @description Tags, in canonical order
+             */
+            tags?: components["schemas"]["ActivityTagKey"][];
+        };
+        /**
+         * ActivityTagsUpdate
+         * @description The complete new tag set for an activity (replaces the old one).
+         */
+        ActivityTagsUpdate: {
+            /**
+             * Tags
+             * @description 0-3 tags; duplicates are ignored
+             */
+            tags: components["schemas"]["ActivityTagKey"][];
         };
         /**
          * ActivityType
@@ -12284,6 +12386,7 @@ export interface operations {
                 start_date?: string | null;
                 end_date?: string | null;
                 name_search?: string | null;
+                tag?: components["schemas"]["ActivityTagKey"][] | null;
                 activity_type?: number | null;
             };
             header?: never;
@@ -12427,6 +12530,7 @@ export interface operations {
                 name_search?: string | null;
                 sort_by?: string | null;
                 sort_order?: string | null;
+                tag?: components["schemas"]["ActivityTagKey"][] | null;
                 activity_type?: number | null;
             };
             header?: never;
@@ -15033,6 +15137,73 @@ export interface operations {
             };
         };
     };
+    read_activities_tags_api_v1_homelab_activity_tags_get: {
+        parameters: {
+            query: {
+                /** @description Activity ids (repeat the parameter); unknown or invisible ones are left out */
+                activity_id: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityTagsRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_activity_tags_api_v1_homelab_activity_tags__activity_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivityTagsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityTagsRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_identity_providers_api_v1_idp_get: {
         parameters: {
             query?: never;
@@ -16490,6 +16661,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivityWorkoutSteps"][] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_public_activities_tags_api_v1_public_homelab_activity_tags_get: {
+        parameters: {
+            query: {
+                /** @description Activity ids (repeat the parameter); unknown or invisible ones are left out */
+                activity_id: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityTagsRead"][];
                 };
             };
             /** @description Validation Error */

@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { SafeHtml } from '@/components/federation'
 import UserAvatar from '@/components/UserAvatar.vue'
 import ActivityActionsMenu from '@/features/activities/components/ActivityActionsMenu.vue'
+import ActivityTagsForActivity from '@/features/activityTags/components/ActivityTagsForActivity.vue' // homelab fork
 import { INTEGRATION_LOGOS } from '@/constants/integrationLogos'
 import {
   activityTypeIsVirtual,
@@ -117,6 +118,7 @@ const showPrivateNotes = computed(
             <Badge v-if="activity.isHidden" variant="destructive">{{
               t('activities.hidden')
             }}</Badge>
+            <ActivityTagsForActivity :activity-id="activity.id" />
           </div>
           <p v-if="dateTimeLabel || locationLabel" class="text-caption mt-1.5">
             <span v-if="dateTimeLabel">{{ dateTimeLabel }}</span>

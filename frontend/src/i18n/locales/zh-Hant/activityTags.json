@@ -1,0 +1,9 @@
+{
+  "title": "Activity Tags",
+  "filterLabel": "Tags",
+  "labels": {
+    "race": "Race",
+    "workout": "Workout",
+    "longRun": "Long Run"
+  }
+}

@@ -1,4 +1,5 @@
 import type { Schemas } from '@/types'
+import type { ActivityTagKey } from '@/features/activityTags/types'
 
 import { apiFetch, HttpError } from '@/services/http'
 
@@ -327,6 +328,8 @@ export interface ActivityListFilters {
   endDate: string | null
   /** Case-insensitive name/location search, or `null`. */
   nameSearch: string | null
+  /** Homelab fork: only activities carrying ALL of these tags. */
+  tags?: readonly ActivityTagKey[]
 }
 
 /** Page + filter + sort input for a user activities list request. */
@@ -365,6 +368,9 @@ function appendActivityFilters(params: URLSearchParams, filters: ActivityListFil
   const name = filters.nameSearch?.trim()
   if (name) {
     params.set('name_search', name)
+  }
+  for (const tag of filters.tags ?? []) {
+    params.append('tag', tag) // homelab fork
   }
 }
 

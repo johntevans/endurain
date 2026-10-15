@@ -9,6 +9,7 @@ import type {
   ActivitySortBy,
   ActivitySortOrder,
 } from '@/features/activities/services/activities'
+import type { ActivityTagKey } from '@/features/activityTags/types'
 
 import ActivityListItem from '@/features/activities/components/ActivityListItem.vue'
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,12 @@ import {
 } from '@/features/activities/utils/activityListColumns'
 import { ACTIVITY_SORT_OPTIONS } from '@/features/activities/utils/activitySortOptions'
 import { presentActivityType } from '@/features/activities/utils/activityType'
+import ActivityTagCheckboxGroup from '@/features/activityTags/components/ActivityTagCheckboxGroup.vue'
+import { useActivityTagsQuery } from '@/features/activityTags/composables/useActivityTags'
+import {
+  formatActivityTagsQuery,
+  parseActivityTagsQuery,
+} from '@/features/activityTags/utils/activityTags'
 
 const { t } = useI18n()
 const { data: currentUser } = useCurrentUser()
@@ -75,6 +82,7 @@ const typeFilter = ref(parseActivityTypeFilterQuery(route.query.type))
 const startDate = ref(parseIsoDateQuery(route.query.startDate))
 const endDate = ref(parseIsoDateQuery(route.query.endDate))
 const searchTerm = ref(getScalarQueryString(route.query.q))
+const tagFilter = ref(parseActivityTagsQuery(route.query.tags)) // homelab fork
 const debouncedSearch = ref(searchTerm.value)
 
 // Sort state, defaulting to newest first (mirrors v1).
@@ -124,6 +132,7 @@ const filters = computed<ActivityListFilters>(() => ({
   startDate: startDate.value || null,
   endDate: endDate.value || null,
   nameSearch: debouncedSearch.value.trim() || null,
+  tags: [...tagFilter.value],
 }))
 
 const hasActiveFilters = computed(
@@ -131,7 +140,8 @@ const hasActiveFilters = computed(
     typeFilter.value > 0 ||
     startDate.value !== '' ||
     endDate.value !== '' ||
-    debouncedSearch.value.trim() !== '',
+    debouncedSearch.value.trim() !== '' ||
+    tagFilter.value.length > 0,
 )
 
 /** Resets every filter and the search back to their defaults. */
@@ -139,6 +149,7 @@ function clearFilters(): void {
   typeFilter.value = 0
   startDate.value = ''
   endDate.value = ''
+  tagFilter.value = []
   clearSearch()
 }
 
@@ -152,6 +163,10 @@ const listQuery = useUserActivitiesQuery(userId, page, recordsPerPage, filters, 
 const activities = computed(() => listQuery.data.value?.records ?? [])
 /** Server-reported total across all pages for the active filters. */
 const totalCount = computed(() => listQuery.data.value?.total ?? 0)
+
+// Homelab fork: the page's tags in one batch request, not one per row.
+const tagsQuery = useActivityTagsQuery(() => activities.value.map((activity) => activity.id))
+const tagsById = computed(() => tagsQuery.data.value ?? new Map<number, ActivityTagKey[]>())
 
 // Numbered pagination: derives the page count and clamps the page when the
 // total shrinks (e.g. after a filter narrows the result set).
@@ -192,6 +207,9 @@ const activitiesQueryState = computed<Record<string, string>>(() => {
   }
   if (debouncedSearch.value.trim()) {
     params.q = debouncedSearch.value.trim()
+  }
+  if (tagFilter.value.length > 0) {
+    params.tags = formatActivityTagsQuery(tagFilter.value)
   }
   if (page.value > 1) {
     params.page = String(page.value)
@@ -266,6 +284,8 @@ useRouteQueryReplacement(activitiesQueryState)
               <Input id="activity-to-date" v-model="endDate" type="date" class="w-full" />
             </div>
           </div>
+
+          <ActivityTagCheckboxGroup v-model="tagFilter" :legend="t('activityTags.filterLabel')" />
 
           <Button v-if="hasActiveFilters" variant="outline" size="sm" @click="clearFilters">
             <X class="size-4" aria-hidden="true" />
@@ -372,7 +392,12 @@ useRouteQueryReplacement(activitiesQueryState)
           </div>
           <ul class="divide-y divide-border">
             <li v-for="activity in activities" :key="activity.id">
-              <ActivityListItem :activity="activity" :units="units" :columns="visibleColumns" />
+              <ActivityListItem
+                :activity="activity"
+                :units="units"
+                :columns="visibleColumns"
+                :tags="tagsById.get(activity.id)"
+              />
             </li>
           </ul>
         </div>

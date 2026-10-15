@@ -30,6 +30,7 @@ import activities.activity.utils as activities_utils
 import core.logger as core_logger
 import core.sanitization as core_sanitization
 import followers.models as followers_models
+import homelab.activity_tags.filters as homelab_tag_filters  # homelab fork
 import notifications.utils as notifications_utils
 import server_settings.utils as server_settings_utils
 import websocket.manager as websocket_manager
@@ -253,6 +254,7 @@ def get_user_activities(
     name_search: str | None = None,
     user_is_owner: bool = True,
     requester_user_id: int | None = None,
+    tags: homelab_tag_filters.TagList | None = None,  # homelab fork
 ) -> list[activities_schema.Activity] | None:
     """Get activities owned by a user (with optional filters).
 
@@ -289,6 +291,7 @@ def get_user_activities(
             stmt = stmt.where(func.date(activities_models.Activity.start_time) <= end_date)
         if name_search:
             stmt = _apply_name_search(stmt, name_search)
+        stmt = homelab_tag_filters.apply_tag_filter(stmt, tags)  # homelab fork: ALL of tags
         stmt = stmt.order_by(desc(activities_models.Activity.start_time))
 
         activities = db.execute(stmt).scalars().all()
@@ -354,6 +357,7 @@ def get_user_activities_with_pagination(
     sort_order: str | None = None,
     user_is_owner: bool = False,
     requester_user_id: int | None = None,
+    tags: homelab_tag_filters.TagList | None = None,  # homelab fork
 ) -> list[activities_schema.Activity] | None:
     """Get a page of user activities with filters and sorting.
 
@@ -396,6 +400,7 @@ def get_user_activities_with_pagination(
             stmt = stmt.where(func.date(activities_models.Activity.start_time) <= end_date)
         if name_search:
             stmt = _apply_name_search(stmt, name_search)
+        stmt = homelab_tag_filters.apply_tag_filter(stmt, tags)  # homelab fork: ALL of tags
 
         sort_ascending = bool(sort_order and sort_order.lower() == "asc")
 

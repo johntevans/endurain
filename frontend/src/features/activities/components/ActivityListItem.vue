@@ -9,8 +9,10 @@ import type {
   ActivityMetricKey,
 } from '@/features/activities/utils/activityListColumns'
 import type { FormattedMetric, Units } from '@/features/activities/utils/format'
+import type { ActivityTagKey } from '@/features/activityTags/types'
 
 import { NA_METRIC } from '@/features/activities/utils/activityListColumns'
+import ActivityTagBadges from '@/features/activityTags/components/ActivityTagBadges.vue'
 import {
   activityTypeIsDistanceBased,
   activityTypeUsesPace,
@@ -41,6 +43,8 @@ const props = defineProps<{
   units: Units
   /** The columns to render, shared with the list header so they line up. */
   columns: readonly ActivityMetricColumn[]
+  /** Homelab fork: the activity's tags, fetched in one batch by the list. */
+  tags?: readonly ActivityTagKey[]
 }>()
 
 const { locale } = useI18n()
@@ -146,6 +150,7 @@ const mobileSummary = computed(() => {
         >
           {{ activity.name }}
         </RouterLink>
+        <ActivityTagBadges v-if="tags?.length" :tags="tags" class="mt-0.5" />
         <p v-if="dateLabel || locationLabel" class="truncate text-hint">
           <span v-if="dateLabel">{{ dateLabel }}</span>
           <span v-if="dateLabel && locationLabel"> · </span>

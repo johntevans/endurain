@@ -35,6 +35,7 @@ import core.file_uploads as core_file_uploads
 import core.logger as core_logger
 import garmin.activity_utils as garmin_activity_utils
 import gears.gear.dependencies as gears_dependencies
+import homelab.activity_tags.schema as homelab_tags_schema  # homelab fork
 import strava.activity_utils as strava_activity_utils
 import users.users.dependencies as users_dependencies
 import users.users.utils as users_utils
@@ -400,6 +401,7 @@ async def read_activities_user_activities_number(
     start_date: date | None = Query(None),
     end_date: date | None = Query(None),
     name_search: str | None = Query(None),
+    tag: list[homelab_tags_schema.ActivityTagKey] | None = Query(None),  # homelab fork: AND of tags
 ):
     # Get the number of activities for the user
     activities = activities_crud.get_user_activities(
@@ -409,6 +411,7 @@ async def read_activities_user_activities_number(
         start_date=start_date,
         end_date=end_date,
         name_search=name_search,
+        tags=tag,  # homelab fork
     )
 
     # Check if activities is None and return 0 if it is
@@ -467,6 +470,7 @@ async def read_activities_user_activities_pagination(
     name_search: str | None = Query(None),
     sort_by: str | None = Query(None),
     sort_order: str | None = Query(None),
+    tag: list[homelab_tags_schema.ActivityTagKey] | None = Query(None),  # homelab fork: AND of tags
 ):
     user_is_owner = True
     if token_user_id != user_id:
@@ -481,6 +485,7 @@ async def read_activities_user_activities_pagination(
         start_date=start_date,
         end_date=end_date,
         name_search=name_search,
+        tags=tag,  # homelab fork
         sort_by=sort_by,
         sort_order=sort_order,
         user_is_owner=user_is_owner,

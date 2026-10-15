@@ -34,6 +34,7 @@ import health.health_targets.router as health_targets_router
 import health.health_water.router as health_water_router
 import health.health_weight.router as health_weight_router
 import health.router as health_router
+import homelab.routes as homelab_routes  # homelab fork
 import notifications.router as notifications_router
 import server_settings.public_router as server_settings_public_router
 import server_settings.router as server_settings_router
@@ -343,6 +344,7 @@ router.include_router(
     prefix=core_config.ROOT_PATH + "/public/users",
     tags=["public_users"],
 )
+router.include_router(homelab_routes.router)  # homelab fork: before the catch-all core router
 router.include_router(
     core_router.router,
     tags=["core"],
