@@ -24,6 +24,12 @@ upstream file can.**
 | `homelab` | **the default branch**, and what production runs | Started at upstream `v0.19.3` (the deployed release). Commit here, push, CI builds the image |
 | `master` | a clean mirror of upstream `master` | Never commit to it. Update with `git fetch upstream && git push origin upstream/master:master` |
 
+The `upstream` remote is fetch-only: its push URL is set to `DISABLE`, so nothing from this
+checkout can be pushed to endurain-project (GitHub would refuse anyway; this account has read
+access only there). In a fresh clone, set it up again with
+`git remote add upstream https://github.com/endurain-project/endurain.git && git remote set-url --push upstream DISABLE`.
+Contributions to upstream go only through a pull request opened on purpose.
+
 **Take upstream releases by MERGING a tag, never by rebasing:**
 
 ```sh
