@@ -2687,6 +2687,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/homelab/training_log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Training Log
+         * @description The requester's activities between two local dates, with their tags.
+         */
+        get: operations["read_training_log_api_v1_homelab_training_log_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/homelab/training_log/range": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Training Log Range
+         * @description Local dates of the requester's first and last activity (which years to show).
+         */
+        get: operations["read_training_log_range_api_v1_homelab_training_log_range_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/idp": {
         parameters: {
             query?: never;
@@ -10223,6 +10263,83 @@ export interface components {
             token_type: "bearer";
         };
         /**
+         * TrainingLogActivity
+         * @description One activity, trimmed to what a training-log circle needs.
+         *
+         *     Dates are the activity's own local calendar date (its ``timezone``, or the
+         *     server's when it has none), so a 6 am run in Tokyo lands on the day it was
+         *     run rather than the UTC day.
+         */
+        TrainingLogActivity: {
+            /**
+             * Activity Type
+             * @description Numeric activity type code
+             */
+            activity_type: number;
+            /**
+             * Distance
+             * @description Distance in meters
+             */
+            distance: number;
+            /**
+             * Elevation Gain
+             * @description Elevation gain in meters
+             */
+            elevation_gain?: number | null;
+            /**
+             * Id
+             * @description Activity ID
+             */
+            id: number;
+            /**
+             * Local Date
+             * Format: date
+             * @description Local calendar date the activity started on
+             */
+            local_date: string;
+            /**
+             * Name
+             * @description Activity name
+             */
+            name: string;
+            /**
+             * Start Time
+             * @description Local start time, ISO 8601 without offset
+             */
+            start_time: string;
+            /**
+             * Tags
+             * @description Activity tags, in canonical order
+             */
+            tags?: components["schemas"]["ActivityTagKey"][];
+            /**
+             * Total Elapsed Time
+             * @description Elapsed time in seconds
+             */
+            total_elapsed_time: number;
+            /**
+             * Total Timer Time
+             * @description Moving (timer) time in seconds
+             */
+            total_timer_time: number;
+        };
+        /**
+         * TrainingLogRange
+         * @description Local dates of the user's first and last (non-hidden) activity.
+         */
+        TrainingLogRange: {
+            /**
+             * First Date
+             * @description Local date of the first activity
+             */
+            first_date?: string | null;
+            /**
+             * Last Date
+             * @description Local date of the most recent activity
+             */
+            last_date?: string | null;
+        };
+        /**
          * TypeBreakdownItem
          * @description Summary metrics broken down by activity type.
          *
@@ -15205,6 +15322,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_training_log_api_v1_homelab_training_log_get: {
+        parameters: {
+            query: {
+                /** @description Inclusive first local date */
+                start_date: string;
+                /** @description Inclusive last local date */
+                end_date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingLogActivity"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_training_log_range_api_v1_homelab_training_log_range_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingLogRange"];
                 };
             };
         };

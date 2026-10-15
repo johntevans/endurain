@@ -14,7 +14,8 @@ here; a port, env var or vhost is fixed there.
 
 Everything the fork adds lives under `homelab/`, in `backend/app/homelab/` (fork backend code
 and its database migrations; the image only ships `backend/`), in
-`frontend/src/features/activityTags/` and the `activityTags.json` locale files, in
+`frontend/src/features/activityTags/` and `frontend/src/features/trainingLog/` and their
+`activityTags.json` / `trainingLog.json` locale files, in
 `frontend/vite.config.homelab.ts`, in `backend/app/.gitignore`, in
 `.github/workflows/homelab-image.yml` and in `CLAUDE.md`. Keep it that way where possible:
 **a new file never conflicts with an upstream merge; an edit to an upstream file can.** The

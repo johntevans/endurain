@@ -1,0 +1,45 @@
+{
+  "title": "Training Log",
+  "nav": "Training Log",
+  "filters": {
+    "sport": "Sport",
+    "allSports": "All sports",
+    "metric": "Measure",
+    "tag": "Activity tag",
+    "allTags": "All tags",
+    "year": "Year"
+  },
+  "metrics": {
+    "time": "Time",
+    "distance": "Distance",
+    "elevation": "Elevation"
+  },
+  "total": {
+    "time": "Total Time",
+    "distance": "Total Distance",
+    "elevation": "Total Elevation"
+  },
+  "sports": {
+    "run": "Run",
+    "ride": "Ride",
+    "swim": "Swim",
+    "walk": "Walk & Hike",
+    "other": "Other"
+  },
+  "rest": "Rest",
+  "today": "Today",
+  "more": "+{count}",
+  "untitled": "Untitled activity",
+  "legend": "Legend",
+  "sideNav": "Years and months",
+  "loadError": "Couldn't load this year.",
+  "retry": "Retry",
+  "error": {
+    "title": "Couldn't load your training log",
+    "description": "Check your connection and try again."
+  },
+  "empty": {
+    "title": "No activities yet",
+    "description": "Your training log fills in as you add activities."
+  }
+}

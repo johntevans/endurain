@@ -80,6 +80,13 @@ const router = createRouter({
       meta: { requiresAuth: true, cardless: true },
     },
     {
+      // Homelab fork: Strava-style training log (features/trainingLog).
+      path: '/training-log',
+      name: 'training-log',
+      component: () => import('@/features/trainingLog/views/TrainingLogView.vue'),
+      meta: { requiresAuth: true, cardless: true },
+    },
+    {
       path: '/gears',
       name: 'gears',
       component: () => import('@/features/gears/views/GearsView.vue'),

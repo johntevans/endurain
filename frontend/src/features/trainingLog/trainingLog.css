@@ -1,0 +1,66 @@
+/*
+ * Homelab fork: training-log circles and legend swatches.
+ *
+ * Each sport family sets a base and a dark shade; the circle style picks how
+ * they are used: plain (base), long run (dark), workout (base hatched with
+ * dark) or race (one race colour for every sport), as on Strava.
+ */
+
+.tl-family-run {
+  --tl-base: #80cc3e;
+  --tl-dark: #3f7e1b;
+}
+
+.tl-family-ride {
+  --tl-base: #63b6ef;
+  --tl-dark: #1f68a8;
+}
+
+.tl-family-swim {
+  --tl-base: #53cfc3;
+  --tl-dark: #12807a;
+}
+
+.tl-family-walk {
+  --tl-base: #f1bb52;
+  --tl-dark: #a96d0e;
+}
+
+.tl-family-other {
+  --tl-base: #b9aaf0;
+  --tl-dark: #6a55c2;
+}
+
+.tl-mark {
+  --tl-race: #b8410f;
+  border-radius: 9999px;
+  color: #14210c;
+  background-color: var(--tl-base);
+}
+
+.tl-mark.tl-style-long {
+  color: #ffffff;
+  background-color: var(--tl-dark);
+}
+
+.tl-mark.tl-style-workout {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--tl-dark) 70%, transparent) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+.tl-mark.tl-style-race {
+  color: #ffffff;
+  background-color: var(--tl-race);
+}
+
+/* Small "today" marker under the current day, like Strava's orange caret. */
+.tl-today {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 7px solid var(--color-effort);
+}
