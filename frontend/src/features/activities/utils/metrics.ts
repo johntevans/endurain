@@ -50,15 +50,15 @@ function has(value: number | null | undefined): value is number {
 }
 
 /**
- * Builds the curated summary metric tiles for an activity, mirroring v1: at most
- * six type-specific stats for distance-based activities, and just calories/time/
- * avg-HR for non-distance sessions (gym/strength/racquet). Privacy-hidden stats
- * are omitted for the current viewer.
+ * Builds the curated summary metric tiles for an activity, mirroring v1: up to
+ * seven type-specific stats for distance-based activities, and just calories/time/
+ * avg-HR for non-distance sessions (gym/strength/racquet). Every type includes
+ * avg HR. Privacy-hidden stats are omitted for the current viewer.
  *
  * @param activity - The activity domain model.
  * @param units - The user's unit system.
  * @param visibility - Which privacy-gated metrics the viewer may see.
- * @returns The ordered tiles to render (≤ 6 for distance activities, 3 otherwise).
+ * @returns The ordered tiles to render (≤ 7 for distance activities, 3 otherwise).
  */
 export function buildActivityMetrics(
   activity: Activity,
@@ -185,7 +185,7 @@ export function buildActivityMetrics(
     return tiles
   }
 
-  // Distance-based: up to six type-curated stats, starting with distance + time.
+  // Distance-based: up to seven type-curated stats, starting with distance + time.
   const distance = formatDistance(activity.distance, type, units)
   tiles.push({
     key: 'distance',
@@ -197,14 +197,16 @@ export function buildActivityMetrics(
   pushTime()
 
   if (activityTypeIsCycling(type)) {
-    // distance, time, elevation gain, avg power, avg speed, calories
+    // distance, time, elevation gain, avg HR, avg power, avg speed, calories
     pushElevationGain()
+    pushAvgHr()
     pushAvgPower()
     pushAvgSpeed()
     pushCalories()
   } else if (activityTypeIsRunning(type)) {
-    // distance, time, pace, avg power, elevation gain, calories
+    // distance, time, pace, avg HR, avg power, elevation gain, calories
     pushPace()
+    pushAvgHr()
     pushAvgPower()
     pushElevationGain()
     pushCalories()

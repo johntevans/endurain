@@ -75,26 +75,42 @@ describe('buildActivityMetrics', () => {
     elevation: true,
   }
 
-  it('shows a curated set of six running stats (distance/time/pace/power/elevation/calories)', () => {
+  it('shows a curated set of seven running stats (distance/time/pace/HR/power/elevation/calories)', () => {
     const tiles = buildActivityMetrics(
       makeActivity({ activityType: 1, averagePower: 250 }),
       'metric',
       visible,
     )
     const keys = tiles.map((tile) => tile.key)
-    expect(keys).toEqual(['distance', 'time', 'pace', 'avgPower', 'elevationGain', 'calories'])
+    expect(keys).toEqual([
+      'distance',
+      'time',
+      'pace',
+      'avgHr',
+      'avgPower',
+      'elevationGain',
+      'calories',
+    ])
     expect(keys).not.toContain('avgSpeed')
-    expect(tiles.length).toBeLessThanOrEqual(6)
+    expect(tiles.length).toBeLessThanOrEqual(7)
   })
 
-  it('shows speed (not pace) for cycling and caps at six', () => {
+  it('shows speed (not pace) and avg HR for cycling', () => {
     const tiles = buildActivityMetrics(
       makeActivity({ activityType: 4, averageSpeed: 8, averagePower: 200, pace: null }),
       'metric',
       visible,
     )
     const keys = tiles.map((tile) => tile.key)
-    expect(keys).toEqual(['distance', 'time', 'elevationGain', 'avgPower', 'avgSpeed', 'calories'])
+    expect(keys).toEqual([
+      'distance',
+      'time',
+      'elevationGain',
+      'avgHr',
+      'avgPower',
+      'avgSpeed',
+      'calories',
+    ])
     expect(keys).not.toContain('pace')
   })
 
