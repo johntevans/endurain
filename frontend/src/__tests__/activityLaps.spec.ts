@@ -15,6 +15,7 @@ function makeLap(overrides: Partial<ActivityLap> = {}): ActivityLap {
     gradeAdjustedAvgSpeed: null,
     totalAscent: 10,
     avgHeartRate: 150,
+    maxHeartRate: 165,
     avgCadence: 80,
     totalCycles: null,
     intensity: null,

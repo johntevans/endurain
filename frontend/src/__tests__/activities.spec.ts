@@ -152,6 +152,7 @@ describe('mapActivityLap', () => {
       grade_adjusted_avg_pace: 0.28,
       grade_adjusted_avg_speed: 3.5,
       avg_heart_rate: 150,
+      max_heart_rate: 172,
     }
     expect(mapActivityLap(dto)).toMatchObject({
       id: 2,
@@ -161,6 +162,7 @@ describe('mapActivityLap', () => {
       gradeAdjustedAvgPace: 0.28,
       gradeAdjustedAvgSpeed: 3.5,
       avgHeartRate: 150,
+      maxHeartRate: 172,
     })
   })
 })

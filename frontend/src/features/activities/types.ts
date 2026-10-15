@@ -118,6 +118,8 @@ export interface ActivityLap {
   totalAscent: number | null
   /** Average heart rate in bpm. */
   avgHeartRate: number | null
+  /** Maximum heart rate in bpm. */
+  maxHeartRate: number | null
   /** Average cadence (raw). */
   avgCadence: number | null
   /** Total cycles (e.g. strides, pedal revolutions, or swim strokes). */

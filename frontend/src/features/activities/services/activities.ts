@@ -170,6 +170,7 @@ export function mapActivityLap(dto: ActivityLapDto): ActivityLap {
     gradeAdjustedAvgSpeed: dto.grade_adjusted_avg_speed ?? null,
     totalAscent: dto.total_ascent ?? null,
     avgHeartRate: dto.avg_heart_rate ?? null,
+    maxHeartRate: dto.max_heart_rate ?? null,
     avgCadence: dto.avg_cadence ?? null,
     totalCycles: dto.total_cycles ?? null,
     intensity: dto.intensity ?? null,

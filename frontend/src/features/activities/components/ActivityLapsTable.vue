@@ -9,13 +9,15 @@ import {
   activityTypeIsRunning,
   activityTypeIsSwimming,
   activityTypeIsWalking,
-  lapCyclesLabelKey,
+  activityTypeUsesPace,
 } from '@/features/activities/utils/activityType'
 import {
+  cadenceUnitLabel,
   combineMetric,
   formatDistance,
   formatElevation,
   formatHmsDuration,
+  presentCadence,
 } from '@/features/activities/utils/format'
 import { normalizeLaps, summarizeActiveLaps } from '@/features/activities/utils/laps'
 import { formatLapTempo } from '@/features/activities/utils/metrics'
@@ -29,12 +31,18 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const isSwimming = computed(() => activityTypeIsSwimming(props.activity.activityType))
-// Swimming hides elevation and shows stroke rate in its place (v1 parity).
+// Swimming has no elevation (v1 parity).
 const showElevation = computed(() => !isSwimming.value)
-const showStrokeRate = computed(() => isSwimming.value)
-// FIT total_cycles means different things per sport (strokes, revolutions,
-// strides, jumps); label the column accordingly.
-const cyclesLabelKey = computed(() => lapCyclesLabelKey(props.activity.activityType))
+// The tempo column is pace or speed depending on the sport (see formatLapTempo).
+const tempoLabelKey = computed(() =>
+  activityTypeUsesPace(props.activity.activityType)
+    ? 'activities.metrics.avgPace'
+    : 'activities.metrics.avgSpeed',
+)
+// A swim's lap cadence is its stroke rate, which has no spm/rpm unit.
+const cadenceLabelKey = computed(() =>
+  isSwimming.value ? 'activities.laps.strokeRate' : 'activities.streams.cadence',
+)
 
 const normalized = computed(() => normalizeLaps(props.laps, props.activity.activityType))
 const hasIntensity = computed(() => normalized.value.some((entry) => entry.lap.intensity !== null))
@@ -85,11 +93,29 @@ interface LapRow {
   /** Relative-pace score (0–100), or `null` when the lap has no pace. */
   tempoScore: number | null
   gap: string
+  avgHr: string
+  maxHr: string
   elevation: string
-  strokeRate: string
-  cycles: string
-  hr: string
+  cadence: string
   isRest: boolean
+}
+
+/**
+ * Formats a lap's average cadence: running doubled to spm, other sports in
+ * rpm, swimming as a bare stroke rate.
+ *
+ * @param avgCadence - Raw lap average cadence.
+ * @returns The display string, or `--` when absent.
+ */
+function formatLapCadence(avgCadence: number | null): string {
+  if (avgCadence === null) {
+    return '--'
+  }
+  const type = props.activity.activityType
+  if (isSwimming.value) {
+    return `${Math.round(avgCadence)}`
+  }
+  return `${Math.round(presentCadence(avgCadence, type))} ${cadenceUnitLabel(type)}`
 }
 
 const rows = computed<LapRow[]>(() =>
@@ -121,13 +147,13 @@ const rows = computed<LapRow[]>(() =>
             props.activity.activityType,
             props.units,
           ),
+      avgHr: lap.avgHeartRate === null ? '--' : `${Math.round(lap.avgHeartRate)} bpm`,
+      maxHr: lap.maxHeartRate === null ? '--' : `${Math.round(lap.maxHeartRate)} bpm`,
       elevation:
         lap.totalAscent === null
           ? '--'
           : combineMetric(formatElevation(lap.totalAscent, props.units)),
-      strokeRate: lap.avgCadence === null ? '--' : `${Math.round(lap.avgCadence)}`,
-      cycles: lap.totalCycles === null ? '--' : `${lap.totalCycles}`,
-      hr: lap.avgHeartRate === null ? '--' : `${Math.round(lap.avgHeartRate)} bpm`,
+      cadence: formatLapCadence(lap.avgCadence),
       isRest: entry.isRest,
     }
   }),
@@ -152,18 +178,16 @@ const rows = computed<LapRow[]>(() =>
             </th>
             <th class="py-2 pe-3 font-medium">{{ t('activities.laps.distance') }}</th>
             <th class="py-2 pe-3 font-medium">{{ t('activities.laps.time') }}</th>
-            <th class="py-2 pe-3 font-medium">{{ t('activities.laps.tempo') }}</th>
+            <th class="py-2 pe-3 font-medium">{{ t(tempoLabelKey) }}</th>
             <th v-if="showGap" class="py-2 pe-3 font-medium" :title="t('activities.laps.gapHint')">
               {{ t('activities.laps.gap') }}
             </th>
+            <th class="py-2 pe-3 font-medium">{{ t('activities.metrics.avgHr') }}</th>
+            <th class="py-2 pe-3 font-medium">{{ t('activities.metrics.maxHr') }}</th>
             <th v-if="showElevation" class="py-2 pe-3 font-medium">
               {{ t('activities.laps.elevation') }}
             </th>
-            <th v-if="showStrokeRate" class="py-2 pe-3 font-medium">
-              {{ t('activities.laps.strokeRate') }}
-            </th>
-            <th class="py-2 pe-3 font-medium">{{ t(cyclesLabelKey) }}</th>
-            <th class="py-2 font-medium">{{ t('activities.laps.hr') }}</th>
+            <th class="py-2 font-medium">{{ t(cadenceLabelKey) }}</th>
           </tr>
         </thead>
         <tbody>
@@ -196,14 +220,12 @@ const rows = computed<LapRow[]>(() =>
               </span>
             </td>
             <td v-if="showGap" class="py-2 pe-3 text-foreground">{{ row.gap }}</td>
+            <td class="py-2 pe-3 text-muted-foreground">{{ row.avgHr }}</td>
+            <td class="py-2 pe-3 text-muted-foreground">{{ row.maxHr }}</td>
             <td v-if="showElevation" class="py-2 pe-3 text-muted-foreground">
               {{ row.elevation }}
             </td>
-            <td v-if="showStrokeRate" class="py-2 pe-3 text-muted-foreground">
-              {{ row.strokeRate }}
-            </td>
-            <td class="py-2 pe-3 text-muted-foreground">{{ row.cycles }}</td>
-            <td class="py-2 text-muted-foreground">{{ row.hr }}</td>
+            <td class="py-2 text-muted-foreground">{{ row.cadence }}</td>
           </tr>
         </tbody>
       </table>
