@@ -126,7 +126,7 @@ async function submit(): Promise<void> {
             :id="fieldId"
             v-model="form.name"
             class="w-full"
-            :maxlength="45"
+            :maxlength="250"
             :disabled="isSaving"
           />
         </template>
