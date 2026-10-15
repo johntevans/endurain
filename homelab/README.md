@@ -12,10 +12,15 @@ file, `.env` template, nginx vhosts, backups, Gatus and Healthchecks — lives i
 `.dev` hostname trick, the import bugs found during the Strava backfill). A feature is fixed
 here; a port, env var or vhost is fixed there.
 
-Everything the fork adds lives under `homelab/`, in `frontend/vite.config.homelab.ts`, in
-`backend/app/.gitignore`, in `.github/workflows/homelab-image.yml` and in `CLAUDE.md`. Keep it
-that way where possible: **a new file never conflicts with an upstream merge; an edit to an
-upstream file can.**
+Everything the fork adds lives under `homelab/`, in `backend/app/homelab/` (fork backend code
+and its database migrations; the image only ships `backend/`), in
+`frontend/src/features/activityTags/` and the `activityTags.json` locale files, in
+`frontend/vite.config.homelab.ts`, in `backend/app/.gitignore`, in
+`.github/workflows/homelab-image.yml` and in `CLAUDE.md`. Keep it that way where possible:
+**a new file never conflicts with an upstream merge; an edit to an upstream file can.** The
+unavoidable edits to upstream files are small and marked with a `homelab fork` comment, so
+`git grep -il "homelab fork" -- backend/app frontend/src` lists the upstream files to check after
+a merge.
 
 ## Branches
 
@@ -69,10 +74,59 @@ So, for fork features:
    keyed to upstream ids (`activities.id`, `users.id`). Upstream never sees them, so the
    upstream image keeps working against the same database.
 3. Manage that schema with **a second Alembic environment** (its own `script_location` and
-   `version_table`, under `homelab/`), run at startup after upstream's. This does not exist yet;
-   build it with the first feature that needs storage, and document it here.
+   `version_table`), run at startup after upstream's. See below.
 4. Derived numbers (training load, PRs, pace zones) that can be recomputed from upstream's
    tables are better computed than stored. A table you don't create is one you never migrate.
+
+### The `homelab` schema and its Alembic environment
+
+| Piece | Where |
+|---|---|
+| Fork models (own `HomelabBase`, `MetaData(schema="homelab")`) | `backend/app/homelab/database.py`, `backend/app/homelab/*/models.py` |
+| Alembic environment (`env.py`, revisions in `versions/`) | `backend/app/homelab/alembic/` |
+| Version table | `homelab.alembic_version` (upstream's stays `public.alembic_version`) |
+| Startup hook | `homelab.db_migrations.run_homelab_migrations()`, called in `main.py` right after `_run_alembic_migrations()` |
+| CLI config (not read at runtime) | `backend/app/homelab/alembic.ini` |
+
+- **Startup.** `main.py` runs upstream's `alembic upgrade head`, then the fork's. Like
+  upstream's, a failure aborts startup. `env.py` creates the `homelab` schema if it is missing
+  (the version table lives in it), so the first start of a fork image against a production copy
+  that has never seen the fork just works; `hl0001` also runs `CREATE SCHEMA IF NOT EXISTS`.
+  `docker/Dockerfile` copies all of `backend/app`, so the environment ships in the image.
+- **Fork models use their own declarative base**, not `core.database.Base`, so upstream's
+  autogenerate and `create_all` never see them. A foreign key into upstream's tables (e.g.
+  `activities.id ... ON DELETE CASCADE`) can't be declared on such a model; write it by hand in
+  the migration. The fork `env.py` limits autogenerate to the `homelab` schema and ignores those
+  hand-written FKs, so `alembic check` stays clean.
+- **Rolling back to vanilla Endurain** keeps working: upstream's image ignores the `homelab`
+  schema. To remove the fork's data entirely: `DROP SCHEMA homelab CASCADE`.
+- **Backups**: the nightly `pg_dump` dumps the whole database, `homelab` included.
+
+**Adding a revision.** Use readable ids (`hl0002`, `hl0003`, ...). From `backend/app`, with a
+database to compare against (the dev stack, or a throwaway Postgres):
+
+```sh
+uv run --no-sync alembic -c homelab/alembic.ini revision --rev-id hl0002 -m "what changed"
+# or, with DB_* env vars pointing at a database at the current head:
+uv run --no-sync alembic -c homelab/alembic.ini revision --autogenerate --rev-id hl0002 -m "..."
+uv run --no-sync alembic -c homelab/alembic.ini check      # model vs database
+```
+
+Every table and index takes `schema="homelab"`; never reference upstream tables except by
+foreign key. `backend/tests/homelab/test_migrations.py` checks the chain and the SQL it emits.
+The backend tests run on SQLite, where `ATTACH DATABASE ':memory:' AS homelab` stands in for
+the schema (see `backend/tests/homelab/test_activity_tags.py`).
+
+**Tables so far:**
+
+| Table | Holds | Revision |
+|---|---|---|
+| `homelab.activity_tags` | Activity tags: `(activity_id → activities.id ON DELETE CASCADE, tag ∈ race/workout/long_run, created_at)`, PK `(activity_id, tag)` | `hl0001` |
+
+The tag keys match Strava's run `workout_type` (1 race, 2 long run, 3 workout). A later
+Strava-sourced comparison should store Strava's value in its own table (for example
+`homelab.activity_strava_workout_type`) rather than as rows here, so the user's own tags and
+Strava's stay separately comparable.
 
 ## Dev stack
 

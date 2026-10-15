@@ -35,6 +35,7 @@ import core.scheduler as core_scheduler
 import core.tracing as core_tracing
 import garmin.activity_utils as garmin_activity_utils
 import garmin.health_utils as garmin_health_utils
+import homelab.db_migrations as homelab_db_migrations  # homelab fork
 import server_settings.schema as server_settings_schema
 import server_settings.utils as server_settings_utils
 import strava.activity_utils as strava_activity_utils
@@ -199,6 +200,7 @@ async def startup_event(fastapi_app: FastAPI) -> None:
 
     # Phase 1: critical pre-flight tasks.
     _run_alembic_migrations()
+    homelab_db_migrations.run_homelab_migrations()  # homelab fork: own schema, after upstream's
     await core_migrations.check_migrations()
     core_scheduler.start_scheduler()
 
