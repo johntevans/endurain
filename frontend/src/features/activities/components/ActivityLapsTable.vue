@@ -21,6 +21,8 @@ import {
 } from '@/features/activities/utils/format'
 import { normalizeLaps, summarizeActiveLaps } from '@/features/activities/utils/laps'
 import { formatLapTempo } from '@/features/activities/utils/metrics'
+import LapIntensityCell from '@/features/lapIntensity/components/LapIntensityCell.vue' // homelab fork
+import { useActivityLapIntensity } from '@/features/lapIntensity/composables/useLapIntensity' // homelab fork
 
 const props = defineProps<{
   laps: ActivityLap[]
@@ -44,7 +46,17 @@ const cadenceLabelKey = computed(() =>
   isSwimming.value ? 'activities.laps.strokeRate' : 'activities.streams.cadence',
 )
 
-const normalized = computed(() => normalizeLaps(props.laps, props.activity.activityType))
+// homelab fork: the owner sees each lap's effective intensity (defaulted or
+// overridden) and can change it; everyone else sees the laps as recorded.
+const {
+  byLapId: lapIntensities,
+  savingLapId,
+  set: setLapIntensity,
+  apply: applyLapIntensity,
+} = useActivityLapIntensity(() => props.activity)
+const laps = computed(() => applyLapIntensity(props.laps))
+
+const normalized = computed(() => normalizeLaps(laps.value, props.activity.activityType))
 const hasIntensity = computed(() => normalized.value.some((entry) => entry.lap.intensity !== null))
 // Any rest lap, whether flagged via FIT intensity or the swim heuristic. Swim
 // rests carry no intensity field, so gating on hasIntensity alone would hide the
@@ -65,7 +77,7 @@ const activeSummary = computed(() => {
   if (!hasRest.value) {
     return null
   }
-  const summary = summarizeActiveLaps(props.laps, props.activity.activityType)
+  const summary = summarizeActiveLaps(laps.value, props.activity.activityType) // homelab fork
   if (summary === null) {
     return null
   }
@@ -198,7 +210,15 @@ const rows = computed<LapRow[]>(() =>
             :class="row.isRest ? 'text-muted-foreground opacity-60' : ''"
           >
             <td class="py-2 pe-3 font-medium text-foreground">{{ row.index }}</td>
-            <td v-if="hasIntensity" class="py-2 pe-3 capitalize text-muted-foreground">
+            <!-- homelab fork: owner's intensity picker -->
+            <td v-if="hasIntensity && lapIntensities.get(row.id)" class="py-1 pe-3">
+              <LapIntensityCell
+                :entry="lapIntensities.get(row.id)!"
+                :saving="savingLapId === row.id"
+                @change="setLapIntensity(row.id, $event)"
+              />
+            </td>
+            <td v-else-if="hasIntensity" class="py-2 pe-3 capitalize text-muted-foreground">
               {{ row.intensity ?? '--' }}
             </td>
             <td class="py-2 pe-3 text-foreground">{{ row.distance }}</td>

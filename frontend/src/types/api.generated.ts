@@ -2687,6 +2687,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/homelab/lap_intensity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Activity Lap Intensities
+         * @description Effective intensity of each lap of one of the requester's activities.
+         */
+        get: operations["read_activity_lap_intensities_api_v1_homelab_lap_intensity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/homelab/lap_intensity/{lap_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Edit Lap Intensity
+         * @description Set (or, with null, clear) the override on one lap.
+         */
+        put: operations["edit_lap_intensity_api_v1_homelab_lap_intensity__lap_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/homelab/training_log": {
         parameters: {
             query?: never;
@@ -9084,6 +9124,53 @@ export interface components {
          */
         Language: "ca" | "zh-Hans" | "zh-Hant" | "de" | "fr" | "gl" | "it" | "nl" | "pt-PT" | "sl" | "sv" | "es" | "en" | "pl" | "tr" | "uk" | "ro" | "nb" | "da" | "fi" | "cs" | "el" | "hu" | "bg" | "hr" | "sr" | "sk" | "lt" | "lv" | "et";
         /**
+         * LapIntensityKey
+         * @description The FIT ``intensity`` values a lap can be given.
+         *
+         *     Upstream stores whatever the file says in ``activity_laps.intensity`` (or
+         *     nothing: GPX, TCX and Strava imports leave it empty). An override must be
+         *     one of these.
+         * @enum {string}
+         */
+        LapIntensityKey: "active" | "interval" | "warmup" | "cooldown" | "recovery" | "rest" | "other";
+        /**
+         * LapIntensityRead
+         * @description One lap's effective intensity and where it comes from.
+         */
+        LapIntensityRead: {
+            /**
+             * Intensity
+             * @description Effective intensity: the override, else the recorded value, else the default
+             */
+            intensity: string;
+            /**
+             * Lap Id
+             * @description Lap ID
+             */
+            lap_id: number;
+            /**
+             * Recorded
+             * @description Intensity as recorded in the activity file
+             */
+            recorded?: string | null;
+            /** @description Which of override, recorded or default applies */
+            source: components["schemas"]["LapIntensitySource"];
+        };
+        /**
+         * LapIntensitySource
+         * @description Where a lap's effective intensity comes from.
+         * @enum {string}
+         */
+        LapIntensitySource: "recorded" | "default" | "override";
+        /**
+         * LapIntensityUpdate
+         * @description A lap's new override; ``null`` removes it (back to recorded or default).
+         */
+        LapIntensityUpdate: {
+            /** @description Override, or null to clear it */
+            intensity: components["schemas"]["LapIntensityKey"] | null;
+        };
+        /**
          * LicenseInfo
          * @description API license metadata.
          *
@@ -10302,6 +10389,18 @@ export interface components {
              * @description Activity name
              */
             name: string;
+            /**
+             * Quality Distance
+             * @description Metres in quality laps of a race, workout or NSM session; 0 otherwise
+             * @default 0
+             */
+            quality_distance: number;
+            /**
+             * Quality Time
+             * @description Seconds in quality laps (active or interval) of a race, workout or NSM session; 0 otherwise
+             * @default 0
+             */
+            quality_time: number;
             /**
              * Start Time
              * @description Local start time, ISO 8601 without offset
@@ -15313,6 +15412,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivityTagsRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_activity_lap_intensities_api_v1_homelab_lap_intensity_get: {
+        parameters: {
+            query: {
+                /** @description Activity ID */
+                activity_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LapIntensityRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_lap_intensity_api_v1_homelab_lap_intensity__lap_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                lap_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LapIntensityUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LapIntensityRead"];
                 };
             };
             /** @description Validation Error */

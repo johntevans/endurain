@@ -1,0 +1,24 @@
+{
+  "label": "Lap intensity",
+  "values": {
+    "active": "Active",
+    "interval": "Interval",
+    "warmup": "Warm-up",
+    "cooldown": "Cool-down",
+    "recovery": "Recovery",
+    "rest": "Rest",
+    "other": "Other"
+  },
+  "source": {
+    "default": "default",
+    "override": "edited"
+  },
+  "hint": {
+    "recorded": "As recorded by the device",
+    "default": "No intensity recorded; treated as Active",
+    "override": "Changed from {recorded}",
+    "overrideDefault": "Changed from the default (Active)"
+  },
+  "reset": "Reset to the recorded intensity",
+  "saveError": "Couldn't save the lap intensity."
+}

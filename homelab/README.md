@@ -14,8 +14,9 @@ here; a port, env var or vhost is fixed there.
 
 Everything the fork adds lives under `homelab/`, in `backend/app/homelab/` (fork backend code
 and its database migrations; the image only ships `backend/`), in
-`frontend/src/features/activityTags/` and `frontend/src/features/trainingLog/` and their
-`activityTags.json` / `trainingLog.json` locale files, in
+`frontend/src/features/activityTags/`, `frontend/src/features/trainingLog/` and
+`frontend/src/features/lapIntensity/` and their `activityTags.json` / `trainingLog.json` /
+`lapIntensity.json` locale files, in
 `frontend/vite.config.homelab.ts`, in `backend/app/.gitignore`, in
 `.github/workflows/homelab-image.yml` and in `CLAUDE.md`. Keep it that way where possible:
 **a new file never conflicts with an upstream merge; an edit to an upstream file can.** The
@@ -123,6 +124,16 @@ the schema (see `backend/tests/homelab/test_activity_tags.py`).
 | Table | Holds | Revision |
 |---|---|---|
 | `homelab.activity_tags` | Activity tags: `(activity_id → activities.id ON DELETE CASCADE, tag ∈ race/workout/long_run/nsm_short/nsm_medium/nsm_long, created_at)`, PK `(activity_id, tag)` | `hl0001`, CHECK widened by `hl0002` |
+| `homelab.lap_intensity_overrides` | The owner's lap intensity corrections: `(lap_id → activity_laps.id ON DELETE CASCADE, intensity ∈ FIT's active/interval/warmup/cooldown/recovery/rest/other, updated_at)`, PK `lap_id` | `hl0003` |
+
+**Lap intensity and training-log quality.** A lap's effective intensity is its override, else
+the recorded `activity_laps.intensity`, else `active` (FIT's default, what a lap of an
+unstructured run is). The default is applied when reading, not written into upstream's table,
+so the ~7,000 laps imported without an intensity (GPX, TCX, Strava) need no backfill and stay
+as imported. The training log's quality time and distance are the laps with an effective
+intensity of `active` or `interval` (Garmin marks structured reps `active` and every lap of a
+free run `interval`), counted only for activities tagged race, workout or NSM; such an activity
+with no laps counts whole. A long run counts only when it is also tagged workout.
 
 The tag keys match Strava's run `workout_type` (1 race, 2 long run, 3 workout). A later
 Strava-sourced comparison should store Strava's value in its own table (for example

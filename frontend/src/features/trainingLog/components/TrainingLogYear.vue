@@ -20,7 +20,10 @@ import {
   joinValue,
   matchesSport,
   matchesTag,
+  metricHasQuality,
   metricTotal,
+  qualityPercent,
+  qualityTotal,
   weeksWindow,
 } from '@/features/trainingLog/utils/trainingLog'
 
@@ -69,21 +72,25 @@ const activeDates = computed(() => new Set((query.data.value ?? []).map((a) => a
 
 const firstDay = computed(() => `${props.year}-01-01`)
 const lastDay = computed(() => `${props.year}-12-31`)
-const yearTotal = computed(() =>
-  joinValue(
-    formatMetricValue(
-      metricTotal(
-        filtered.value.filter(
-          (activity) => activity.localDate >= firstDay.value && activity.localDate <= lastDay.value,
-        ),
-        props.metric,
-      ),
-      props.metric,
-      props.units,
-      props.swim,
-    ),
+const yearActivities = computed(() =>
+  filtered.value.filter(
+    (activity) => activity.localDate >= firstDay.value && activity.localDate <= lastDay.value,
   ),
 )
+const yearTotalValue = computed(() => metricTotal(yearActivities.value, props.metric))
+const yearTotal = computed(() =>
+  joinValue(formatMetricValue(yearTotalValue.value, props.metric, props.units, props.swim)),
+)
+const yearQuality = computed(() => {
+  if (!metricHasQuality(props.metric)) {
+    return null
+  }
+  const value = qualityTotal(yearActivities.value, props.metric)
+  return t('trainingLog.quality.value', {
+    value: joinValue(formatMetricValue(value, props.metric, props.units, props.swim)),
+    percent: `${qualityPercent(value, yearTotalValue.value)}%`,
+  })
+})
 
 const loading = computed(() => !nearViewport.value || query.isPending.value)
 </script>
@@ -103,6 +110,14 @@ const loading = computed(() => !nearViewport.value || query.isPending.value)
       <span v-else-if="!loading" class="text-hint" data-testid="training-log-year-total">
         {{ t(`trainingLog.total.${metric}`) }}
         <span class="font-medium text-foreground">{{ yearTotal }}</span>
+        <template v-if="yearQuality">
+          <span class="hidden sm:inline">
+            <span class="mx-1.5" aria-hidden="true">·</span>{{ t('trainingLog.quality.total') }}
+            <span class="font-medium text-foreground" data-testid="training-log-year-quality">{{
+              yearQuality
+            }}</span>
+          </span>
+        </template>
       </span>
     </header>
     <div data-tl-rows :style="{ height: `calc(var(--tl-row-h) * ${weeks.length})` }">

@@ -32,6 +32,7 @@ import {
   localTodayIso,
   matchesSport,
   matchesTag,
+  metricHasQuality,
   metricTotal,
   metricValue,
   MIN_CIRCLE_FRACTION,
@@ -39,6 +40,8 @@ import {
   parseMetric,
   parseSportFilter,
   parseTagFilter,
+  qualityPercent,
+  qualityTotal,
   sportFamily,
   sportFilterOptions,
   weekMonth,
@@ -95,6 +98,8 @@ function makeLogActivity(overrides: Partial<TrainingLogActivity> = {}): Training
     elapsedTime: 3_700,
     elevationGain: 80,
     tags: [],
+    qualityTime: 0,
+    qualityDistance: 0,
     ...overrides,
   }
 }
@@ -249,6 +254,21 @@ describe('training log circles and numbers', () => {
     expect(metricTotal([activity, activity], 'distance')).toBe(20_000)
   })
 
+  it('totals quality work and its share, with none for elevation', () => {
+    const workout = makeLogActivity({ qualityTime: 1_800, qualityDistance: 6_000 })
+    const easy = makeLogActivity()
+    expect(qualityTotal([workout, easy], 'time')).toBe(1_800)
+    expect(qualityTotal([workout, easy], 'distance')).toBe(6_000)
+    expect(qualityTotal([workout, easy], 'elevation')).toBe(0)
+    expect(metricHasQuality('time')).toBe(true)
+    expect(metricHasQuality('elevation')).toBe(false)
+    expect(qualityPercent(1_800, 7_200)).toBe(25)
+    expect(qualityPercent(1_000, 3_000)).toBe(33)
+    expect(qualityPercent(0, 0)).toBe(0)
+    // Lap sums can run a little past the activity's own time.
+    expect(qualityPercent(3_610, 3_600)).toBe(100)
+  })
+
   it('sizes circles by area between a floor and a full circle', () => {
     expect(circleFraction(0, 'time', 1)).toBe(MIN_CIRCLE_FRACTION)
     expect(circleFraction(10_800, 'time', 1)).toBe(1)
@@ -305,6 +325,8 @@ describe('training log service', () => {
         total_elapsed_time: 5_420,
         elevation_gain: null,
         tags: ['long_run', 'race'],
+        quality_time: 5_400,
+        quality_distance: 21_097,
       },
     ])
 
@@ -325,6 +347,8 @@ describe('training log service', () => {
         elapsedTime: 5_420,
         elevationGain: null,
         tags: ['race', 'long_run'],
+        qualityTime: 5_400,
+        qualityDistance: 21_097,
       },
     ])
   })
@@ -384,17 +408,24 @@ describe('TrainingLogDay', () => {
 })
 
 describe('TrainingLogWeek', () => {
-  it('totals the week for the chosen metric and only rests past days', () => {
+  function mountWeek(metric: 'time' | 'distance' | 'elevation' = 'time') {
     const byDate = groupByDate([
       makeLogActivity({ id: 1, localDate: '2026-10-12', movingTime: 4_800 }),
-      makeLogActivity({ id: 2, localDate: '2026-10-14', movingTime: 3_300 }),
+      makeLogActivity({
+        id: 2,
+        localDate: '2026-10-14',
+        movingTime: 3_300,
+        distance: 8_000,
+        qualityTime: 1_800,
+        qualityDistance: 5_000,
+      }),
     ])
-    const wrapper = mount(TrainingLogWeek, {
+    return mount(TrainingLogWeek, {
       props: {
         week: weekOf('2026-10-12', 'monday'),
         byDate,
         activeDates: new Set(['2026-10-12', '2026-10-14', '2026-10-16']),
-        metric: 'time',
+        metric,
         units: 'metric',
         swim: false,
         today: '2026-10-15',
@@ -403,12 +434,36 @@ describe('TrainingLogWeek', () => {
       },
       global: withPlugins(),
     })
+  }
+
+  it('totals the week for the chosen metric and only rests past days', () => {
+    const wrapper = mountWeek()
     expect(wrapper.text()).toContain('Oct 12 – 18')
     expect(wrapper.text()).toContain('Total Time')
     expect(wrapper.get('[data-testid="training-log-week-total"]').text()).toBe('2h 15m')
     // Tue 13 is the only past empty day; Thu 15 is today (no Rest), Fri-Sun are future.
     expect(wrapper.findAll('[data-testid="training-log-rest"]')).toHaveLength(1)
     expect(wrapper.findAll('[data-testid="training-log-today"]')).toHaveLength(1)
+  })
+
+  it('shows the quality total and its share of the week', async () => {
+    const wrapper = mountWeek()
+    expect(wrapper.text()).toContain('Total Quality')
+    expect(wrapper.text()).toContain('Quality %')
+    expect(wrapper.get('[data-testid="training-log-week-quality"]').text()).toBe('30m')
+    // 30 of 135 minutes.
+    expect(wrapper.get('[data-testid="training-log-week-quality-percent"]').text()).toBe('22%')
+    expect(wrapper.get('[data-testid="training-log-week-quality-short"]').text()).toBe(
+      '22% quality',
+    )
+
+    await wrapper.setProps({ metric: 'distance' })
+    expect(wrapper.get('[data-testid="training-log-week-quality"]').text()).toBe('5.0 km')
+    expect(wrapper.get('[data-testid="training-log-week-quality-percent"]').text()).toBe('28%')
+
+    await wrapper.setProps({ metric: 'elevation' })
+    expect(wrapper.find('[data-testid="training-log-week-quality"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Quality')
   })
 })
 
@@ -426,6 +481,20 @@ describe('TrainingLogYear', () => {
         total_elapsed_time: 9_100,
         elevation_gain: 200,
         tags: ['long_run'],
+      },
+      {
+        id: 3,
+        name: 'Sub-T',
+        activity_type: 1,
+        local_date: '2026-10-07',
+        start_time: '2026-10-07T07:00:00',
+        distance: 10_000,
+        total_timer_time: 3_600,
+        total_elapsed_time: 3_700,
+        elevation_gain: 40,
+        tags: ['nsm_long'],
+        quality_time: 1_800,
+        quality_distance: 6_300,
       },
       {
         id: 2,
@@ -459,14 +528,16 @@ describe('TrainingLogYear', () => {
       '/homelab/training_log?start_date=2026-10-05&end_date=2026-10-18',
     )
     expect(wrapper.findAll('[data-testid="training-log-week"]')).toHaveLength(2)
-    expect(wrapper.get('[data-testid="training-log-year-total"]').text()).toContain('42.0 km')
-    expect(wrapper.findAll('[data-style]')).toHaveLength(2)
+    expect(wrapper.get('[data-testid="training-log-year-total"]').text()).toContain('52.0 km')
+    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('6.3 km (12%)')
+    expect(wrapper.findAll('[data-style]')).toHaveLength(3)
 
     const restDays = () => wrapper.findAll('[data-testid="training-log-rest"]').length
     const restBefore = restDays()
 
     await wrapper.setProps({ sport: 'ride' })
     expect(wrapper.findAll('[data-style]')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('0.0 km (0%)')
     // Filtering out Sunday's run does not turn Sunday into a rest day.
     expect(restDays()).toBe(restBefore)
     expect(wrapper.get('[data-testid="training-log-year-total"]').text()).toContain('12.0 km')

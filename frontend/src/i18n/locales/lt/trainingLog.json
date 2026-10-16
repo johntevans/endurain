@@ -19,6 +19,12 @@
     "distance": "Total Distance",
     "elevation": "Total Elevation"
   },
+  "quality": {
+    "total": "Total Quality",
+    "percent": "Quality %",
+    "short": "{percent} quality",
+    "value": "{value} ({percent})"
+  },
   "sports": {
     "run": "Run",
     "ride": "Ride",

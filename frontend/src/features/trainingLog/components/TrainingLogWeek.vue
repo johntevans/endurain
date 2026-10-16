@@ -14,7 +14,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   formatMetricValue,
   joinValue,
+  metricHasQuality,
   metricTotal,
+  qualityPercent,
+  qualityTotal,
   weekRangeLabel,
 } from '@/features/trainingLog/utils/trainingLog'
 
@@ -50,19 +53,24 @@ const days = computed(() =>
   })),
 )
 
+const weekActivities = computed(() => days.value.flatMap((day) => day.activities))
+const totalValue = computed(() => metricTotal(weekActivities.value, props.metric))
 const total = computed(() =>
-  joinValue(
-    formatMetricValue(
-      metricTotal(
-        days.value.flatMap((day) => day.activities),
-        props.metric,
-      ),
-      props.metric,
-      props.units,
-      props.swim,
-    ),
-  ),
+  joinValue(formatMetricValue(totalValue.value, props.metric, props.units, props.swim)),
 )
+
+// The week's quality work (time or distance; elevation has none) and its
+// share of the total.
+const quality = computed(() => {
+  if (!metricHasQuality(props.metric)) {
+    return null
+  }
+  const value = qualityTotal(weekActivities.value, props.metric)
+  return {
+    total: joinValue(formatMetricValue(value, props.metric, props.units, props.swim)),
+    percent: `${qualityPercent(value, totalValue.value)}%`,
+  }
+})
 
 const label = computed(() => weekRangeLabel(props.week, locale.value))
 </script>
@@ -86,6 +94,36 @@ const label = computed(() => weekRangeLabel(props.week, locale.value))
           data-testid="training-log-week-total"
           >{{ total }}</span
         >
+        <span
+          v-if="quality && !loading"
+          class="text-micro text-muted-foreground sm:hidden"
+          data-testid="training-log-week-quality-short"
+          >{{ t('trainingLog.quality.short', { percent: quality.percent }) }}</span
+        >
+      </span>
+      <span v-if="quality" class="hidden gap-4 sm:mt-2.5 sm:flex">
+        <span class="flex flex-col gap-0.5">
+          <span class="text-micro text-muted-foreground">{{ t('trainingLog.quality.total') }}</span>
+          <Skeleton v-if="loading" class="h-5 w-12" />
+          <span
+            v-else
+            class="text-[15px] font-medium text-foreground"
+            data-testid="training-log-week-quality"
+            >{{ quality.total }}</span
+          >
+        </span>
+        <span class="flex flex-col gap-0.5">
+          <span class="text-micro text-muted-foreground">{{
+            t('trainingLog.quality.percent')
+          }}</span>
+          <Skeleton v-if="loading" class="h-5 w-10" />
+          <span
+            v-else
+            class="text-[15px] font-medium text-foreground"
+            data-testid="training-log-week-quality-percent"
+            >{{ quality.percent }}</span
+          >
+        </span>
       </span>
     </div>
     <TrainingLogDay

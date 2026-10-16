@@ -19,6 +19,8 @@ import core.config as core_config
 import core.logger as core_logger
 from homelab.activity_tags import schema as tags_schema
 from homelab.activity_tags.models import ActivityTag
+from homelab.lap_intensity import crud as intensity_crud
+from homelab.lap_intensity import schema as intensity_schema
 from homelab.training_log import schema as training_log_schema
 
 # UTC offsets run from -12:00 to +14:00, so a local date D starts no earlier
@@ -60,6 +62,20 @@ def _owned_visible(user_id: int) -> Select:
         Activity.user_id == user_id,
         Activity.is_hidden.is_(False),
     )
+
+
+def _quality(row, is_quality_session: bool, laps: intensity_crud.QualityTotals | None) -> tuple[float, float]:
+    """An activity's quality time and distance.
+
+    Zero unless it is a quality session (by tag). A quality session without
+    laps counts whole, as one lap of the default intensity would.
+    """
+    if not is_quality_session:
+        return 0.0, 0.0
+    if laps is None:
+        timer = float(row.total_timer_time or 0)
+        return (timer if timer > 0 else float(row.total_elapsed_time or 0)), float(max(row.distance or 0, 0))
+    return laps.timer_time, laps.distance
 
 
 def get_training_log_activities(
@@ -117,11 +133,15 @@ def get_training_log_activities(
             for activity_id, tag in tag_rows:
                 tags.setdefault(activity_id, set()).add(tag)
 
+        quality_ids = {row.id for row in rows if tags.get(row.id, set()) & intensity_schema.QUALITY_TAGS}
+        quality = intensity_crud.get_quality_totals(quality_ids, db)
+
         result: list[training_log_schema.TrainingLogActivity] = []
         for row in rows:
             local_start = to_local(row.start_time, row.timezone)
             if not start_date <= local_start.date() <= end_date:
                 continue
+            quality_time, quality_distance = _quality(row, row.id in quality_ids, quality.get(row.id))
             result.append(
                 training_log_schema.TrainingLogActivity(
                     id=row.id,
@@ -134,6 +154,8 @@ def get_training_log_activities(
                     total_elapsed_time=float(row.total_elapsed_time or 0),
                     elevation_gain=row.elevation_gain,
                     tags=tags_schema.sort_tags(tags.get(row.id, set())),
+                    quality_time=quality_time,
+                    quality_distance=quality_distance,
                 )
             )
         return result

@@ -21,6 +21,8 @@ import enHealth from './locales/en/health.json'
 import enActivityTags from './locales/en/activityTags.json'
 // Homelab fork: training log (features/trainingLog).
 import enTrainingLog from './locales/en/trainingLog.json'
+// Homelab fork: lap intensity (features/lapIntensity).
+import enLapIntensity from './locales/en/lapIntensity.json'
 
 /**
  * English message set, assembled from one file per feature namespace. The
@@ -46,6 +48,7 @@ const en = {
   health: enHealth,
   activityTags: enActivityTags, // homelab fork
   trainingLog: enTrainingLog, // homelab fork
+  lapIntensity: enLapIntensity, // homelab fork
 }
 
 /**

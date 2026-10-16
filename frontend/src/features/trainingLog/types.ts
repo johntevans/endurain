@@ -30,6 +30,13 @@ export interface TrainingLogActivity {
   /** Metres, or `null` when the activity has none. */
   elevationGain: number | null
   tags: ActivityTagKey[]
+  /**
+   * Seconds in quality laps (effective intensity active or interval) of a
+   * race, workout or NSM session; 0 for any other activity.
+   */
+  qualityTime: number
+  /** Metres in those laps; 0 for any other activity. */
+  qualityDistance: number
 }
 
 /** Local dates of the first and last activity (`null` when there are none). */

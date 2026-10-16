@@ -25,6 +25,16 @@ class TrainingLogActivity(BaseModel):
     total_elapsed_time: float = Field(..., ge=0, description="Elapsed time in seconds")
     elevation_gain: int | None = Field(default=None, description="Elevation gain in meters")
     tags: list[ActivityTagKey] = Field(default_factory=list, description="Activity tags, in canonical order")
+    quality_time: float = Field(
+        default=0,
+        ge=0,
+        description="Seconds in quality laps (active or interval) of a race, workout or NSM session; 0 otherwise",
+    )
+    quality_distance: float = Field(
+        default=0,
+        ge=0,
+        description="Metres in quality laps of a race, workout or NSM session; 0 otherwise",
+    )
 
     model_config = ConfigDict(extra="forbid")
 

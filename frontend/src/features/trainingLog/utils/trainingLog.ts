@@ -316,6 +316,36 @@ export function metricTotal(
   return activities.reduce((sum, activity) => sum + metricValue(activity, metric), 0)
 }
 
+/** Whether a metric has a quality share (elevation has none). */
+export function metricHasQuality(metric: TrainingLogMetric): metric is 'time' | 'distance' {
+  return metric !== 'elevation'
+}
+
+/** Sum of the quality part of a metric over activities, in seconds or metres. */
+export function qualityTotal(
+  activities: readonly TrainingLogActivity[],
+  metric: TrainingLogMetric,
+): number {
+  if (!metricHasQuality(metric)) {
+    return 0
+  }
+  return activities.reduce(
+    (sum, activity) => sum + (metric === 'time' ? activity.qualityTime : activity.qualityDistance),
+    0,
+  )
+}
+
+/**
+ * Quality as a whole percentage of the total, `0` when there is no total.
+ * Capped at 100, since lap sums can run a few seconds past an activity's own.
+ */
+export function qualityPercent(quality: number, total: number): number {
+  if (total <= 0) {
+    return 0
+  }
+  return Math.min(100, Math.round((quality / total) * 100))
+}
+
 /**
  * The value that fills a whole circle, per metric and sport. Fixed rather
  * than relative to the data on screen, so a circle keeps its size as more
