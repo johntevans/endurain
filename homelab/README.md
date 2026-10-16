@@ -140,6 +140,25 @@ Strava-sourced comparison should store Strava's value in its own table (for exam
 `homelab.activity_strava_workout_type`) rather than as rows here, so the user's own tags and
 Strava's stay separately comparable.
 
+### Fork-only activity types
+
+`activities.activity_type` is a plain integer that upstream numbers sequentially (1–47 as of
+v0.19.3), so the fork's own types start at **1001**. Taking upstream's next number would let a
+later release reuse it, and every activity already stored with it would silently change type.
+No migration is involved; the id only needs adding to the two mappings, both marked
+`homelab fork`: `ACTIVITY_ID_TO_NAME` / `ACTIVITY_NAME_TO_ID` in
+`backend/app/activities/activity/utils.py` and `ACTIVITY_TYPE_LABEL_KEYS` (plus
+`NON_DISTANCE_TYPES` where it applies) in `frontend/src/features/activities/utils/activityType.ts`,
+with an English label in `activities.json` (other locales fall back to it). Tests are in
+`backend/tests/homelab/test_activity_types.py` and `frontend/src/__tests__/homelabActivityTypes.spec.ts`.
+
+| Id | Type |
+|---|---|
+| 1001 | Physical therapy |
+
+On a rollback to vanilla Endurain these activities show as "Workout" in the frontend (and
+"Unknown" in the backend's per-type counts); nothing fails.
+
 ## Dev stack
 
 Runs on the Claude session host (`johns-mac-mini-old`) in OrbStack, with a **copy of

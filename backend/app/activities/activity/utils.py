@@ -100,6 +100,8 @@ ACTIVITY_ID_TO_NAME = {
     45: "Inline skating",
     46: "HIIT",
     47: "Jump rope",
+    # homelab fork: fork-only ids start at 1001 so an upstream type never reuses them
+    1001: "Physical therapy",
     # Add other mappings as needed based on the full list in define_activity_type comments if required
     # "AlpineSki",
     # "BackcountrySki",
@@ -242,6 +244,8 @@ ACTIVITY_NAME_TO_ID.update(
         "highintensityintervaltraining": 46,
         "jump_rope": 47,
         "jumprope": 47,
+        "physical_therapy": 1001,  # homelab fork
+        "physicaltherapy": 1001,  # homelab fork
     }
 )
 

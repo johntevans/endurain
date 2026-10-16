@@ -68,6 +68,8 @@ export const ACTIVITY_TYPE_LABEL_KEYS: Record<number, string> = {
   45: 'activities.types.inlineSkating',
   46: 'activities.types.hiit',
   47: 'activities.types.jumpRope',
+  // homelab fork: fork-only ids start at 1001 so an upstream type never reuses them
+  1001: 'activities.types.physicalTherapy',
 }
 
 const RUNNING_TYPES = new Set([1, 2, 3, 34, 40])
@@ -269,10 +271,11 @@ export function activityTypeUsesPace(type: number): boolean {
 
 /**
  * Activity types with no meaningful distance (gym/structured/indoor sessions):
- * workout, yoga, transition, strength, crossfit, cardio, HIIT, jump rope.
+ * workout, yoga, transition, strength, crossfit, cardio, HIIT, jump rope, and
+ * the fork's physical therapy (1001).
  * Racquet sports are also non-distance (handled via {@link activityTypeIsRacquet}).
  */
-const NON_DISTANCE_TYPES = new Set([10, 14, 18, 19, 20, 41, 46, 47])
+const NON_DISTANCE_TYPES = new Set([10, 14, 18, 19, 20, 41, 46, 47, 1001]) // homelab fork: 1001
 
 /**
  * Whether an activity is distance-based (shows distance/pace/elevation) versus
