@@ -671,9 +671,13 @@ def _handle_record_frame(frame, state: FitParseState) -> None:
     if temperature is not None:
         state.is_temperature_set = True
 
-    instant_speed = None
+    # homelab fork: prefer the device's own (filtered) speed. Speed derived from
+    # the distance between consecutive 1 s GPS fixes is dominated by position
+    # error, so it is only the fallback for records without a speed field.
+    instant_speed = get_value_from_frame(frame, "enhanced_speed", get_value_from_frame(frame, "speed"))
     if (
-        latitude is not None
+        instant_speed is None
+        and latitude is not None
         and state.prev_latitude is not None
         and longitude is not None
         and state.prev_longitude is not None

@@ -159,6 +159,37 @@ with an English label in `activities.json` (other locales fall back to it). Test
 On a rollback to vanilla Endurain these activities show as "Workout" in the frontend (and
 "Unknown" in the backend's per-type counts); nothing fails.
 
+### Speed and pace streams
+
+Upstream's FIT importer ignores the record's `enhanced_speed` and derives speed from the
+distance between consecutive 1 s GPS fixes, which is mostly position error: on a 9:23/mi run
+the samples swing from 7:00 to 14:12 (1st–99th percentile) where the watch's own speed stays
+within 8:33–11:03. The fork's importer (`_handle_record_frame` in `utils_fit.py`, marked
+`homelab fork`) stores the device speed and keeps GPS only as the fallback. Indoor runs with a
+device speed now also get a speed/pace stream.
+
+**Backfill for older imports.** `backend/app/homelab/fit_speed_backfill.py` re-reads each
+activity's `processed/<id>.fit` and rewrites only its existing speed (5) and pace (6) stream rows,
+cut to the activity's start/end. It only parses record messages, because the importer's session
+handler geocodes over the network. Data only, no schema; a rollback to vanilla keeps working.
+In the backend container, from `/app/backend` (about 6 min for 1,400 files):
+
+```sh
+python -m homelab.fit_speed_backfill                    # dry run, prints counts
+python -m homelab.fit_speed_backfill --apply [--activity-id N]
+```
+
+Run on the dev copy on 2026-10-16 (`updated 1403, not_fit 69`: the GPX/TCX imports keep their
+GPS-derived streams). **Not yet run on production**; it is needed once after the first deploy
+that contains the importer change.
+
+**Pace chart.** `frontend/src/features/activities/utils/homelabPaceChart.ts` shapes the pace chart
+like Garmin's: faster pace on top, a y-axis from the 1st–99th percentile snapped to clock-friendly
+steps, speed-averaged smoothing (5 samples, or 21 when the series is GPS-derived), a dashed
+average-pace line, and at most six x-axis labels on every stream chart. It needs the chart
+provider options `yRange`, `xMaxTicks` and a series' `legend: false` (upstream edits in
+`useChartProvider.ts` and `chartJsChartProvider.ts`).
+
 ## Dev stack
 
 Runs on the Claude session host (`johns-mac-mini-old`) in OrbStack, with a **copy of
