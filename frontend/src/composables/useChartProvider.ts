@@ -27,6 +27,8 @@ export interface ChartSeries {
    * without dashed support fall back to a solid line.
    */
   dashed?: boolean
+  /** homelab fork: `false` leaves the series out of the legend (e.g. an average line). */
+  legend?: boolean
 }
 
 /** Options controlling a single chart render. */
@@ -55,6 +57,13 @@ export interface ChartRenderOptions {
    * where a lower (faster) pace is "better".
    */
   invertY?: boolean
+  /**
+   * homelab fork: fixed y-axis bounds and tick step, in raw values. Samples
+   * outside are clipped at the edge instead of stretching the axis.
+   */
+  yRange?: { min: number; max: number; step?: number }
+  /** homelab fork: caps the x-axis labels and keeps them horizontal. */
+  xMaxTicks?: number
   /**
    * Enables interactive pan/zoom along the x-axis (wheel + drag on desktop,
    * pinch on touch). Providers without zoom support ignore this.

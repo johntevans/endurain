@@ -86,7 +86,8 @@ describe('buildStreamChart', () => {
     expect(imperial?.render.series[0]?.data[0]).toBeCloseTo(328.084)
   })
 
-  it('plots pace on a normal (non-inverted) axis and drops outlier samples', () => {
+  // homelab fork: pace is inverted (faster on top), see homelabPaceChart.spec.ts.
+  it('plots pace on an inverted axis and drops outlier samples', () => {
     // 0.3 s/m → 300 s/km (kept); 2.0 s/m → 2000 s/km exceeds the 1200 s threshold.
     const chart = buildStreamChart(
       stream(6, [{ pace: 0.3 }, { pace: 2.0 }]),
@@ -94,7 +95,7 @@ describe('buildStreamChart', () => {
       'metric',
     )
     expect(chart?.metric).toBe('pace')
-    expect(chart?.render.invertY).toBeFalsy()
+    expect(chart?.render.invertY).toBe(true)
     const data = chart?.render.series[0]?.data ?? []
     expect(data[0]).toBeCloseTo(300)
     expect(Number.isNaN(data[1])).toBe(true)

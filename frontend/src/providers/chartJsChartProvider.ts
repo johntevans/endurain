@@ -109,7 +109,9 @@ export function buildChartConfiguration(
       borderColor: color,
       backgroundColor: filled ? hexToRgba(color, AREA_FILL_ALPHA) : color,
       borderWidth: 2,
-      fill: filled,
+      // homelab fork: on an inverted axis fill toward the bottom edge (the slow
+      // side of a pace chart), not toward the value base, which sits on top.
+      fill: filled && options.invertY ? 'start' : filled,
       tension: 0.3,
       pointRadius: 0,
     }
@@ -126,7 +128,13 @@ export function buildChartConfiguration(
       maintainAspectRatio: false,
       animation: false,
       plugins: {
-        legend: { display: options.series.length > 1 },
+        // homelab fork: series with `legend: false` don't count or show.
+        legend: {
+          display: options.series.filter((series) => series.legend !== false).length > 1,
+          labels: {
+            filter: (item) => options.series[item.datasetIndex ?? 0]?.legend !== false,
+          },
+        },
         tooltip: {
           callbacks: {
             // X value (tooltip title): append the axis unit (e.g. `0.7 km`) so a
@@ -160,13 +168,25 @@ export function buildChartConfiguration(
           : undefined,
       },
       scales: {
-        x: { display: true },
+        x: {
+          display: true,
+          // homelab fork: optional label cap.
+          ...(options.xMaxTicks
+            ? { ticks: { maxTicksLimit: options.xMaxTicks, maxRotation: 0 } }
+            : {}),
+        },
         y: {
           display: true,
           reverse: options.invertY ?? false,
-          ticks: options.valueFormat
-            ? { callback: (value) => options.valueFormat?.(Number(value)) ?? String(value) }
-            : {},
+          // homelab fork: optional fixed bounds.
+          min: options.yRange?.min,
+          max: options.yRange?.max,
+          ticks: {
+            stepSize: options.yRange?.step,
+            ...(options.valueFormat
+              ? { callback: (value) => options.valueFormat?.(Number(value)) ?? String(value) }
+              : {}),
+          },
         },
       },
     },

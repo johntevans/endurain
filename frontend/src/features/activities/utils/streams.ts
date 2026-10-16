@@ -32,6 +32,7 @@ import {
   speedUnitLabel,
   type Units,
 } from './format'
+import { shapeStreamChart } from './homelabPaceChart' // homelab fork
 
 /** Maps a numeric stream type to its metric kind. */
 const METRIC_BY_TYPE: Record<number, StreamMetric> = {
@@ -437,17 +438,17 @@ export function buildStreamChart(
   return {
     metric,
     titleKey: METRIC_TITLE_KEY[metric],
-    render: {
+    // homelab fork: shapeStreamChart inverts, smooths and scales pace.
+    render: shapeStreamChart(metric, activity, units, {
       // All metric charts render as lines with a gradient fill for visual
-      // consistency. Pace is plotted on a normal (non-inverted) axis like every
-      // other metric; the y-tick/tooltip formatter renders it as M:SS.
+      // consistency. The y-tick/tooltip formatter renders pace as M:SS.
       kind: 'line',
       series: [{ label: METRIC_TITLE_KEY[metric], data, color: METRIC_COLOR[metric] }],
       labels: xAxis.labels,
       xUnit: xAxis.unit,
       valueFormat: valueFormatter(metric, type, units),
       zoom: true,
-    },
+    }),
     stats: buildStreamStats(metric, activity, units),
   }
 }
