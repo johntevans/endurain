@@ -179,9 +179,9 @@ python -m homelab.fit_speed_backfill                    # dry run, prints counts
 python -m homelab.fit_speed_backfill --apply [--activity-id N]
 ```
 
-Run on the dev copy on 2026-10-16 (`updated 1403, not_fit 69`: the GPX/TCX imports keep their
-GPS-derived streams). **Not yet run on production**; it is needed once after the first deploy
-that contains the importer change.
+Run on production on 2026-10-16 right after deploying `d8791c5` (`updated 1403, not_fit 69`:
+the GPX/TCX imports keep their GPS-derived streams). The old rows are saved on macmini; see the
+deploy log in homelab-ops for the file and how to undo it. Imports since then need no backfill.
 
 **Pace chart.** `frontend/src/features/activities/utils/homelabPaceChart.ts` shapes the pace chart
 like Garmin's: faster pace on top, a y-axis from the 1st–99th percentile snapped to clock-friendly
