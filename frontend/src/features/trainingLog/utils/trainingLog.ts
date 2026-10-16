@@ -11,6 +11,7 @@ import type {
   CircleStyle,
   SportFamily,
   SportFilter,
+  SportOption,
   TagFilter,
   TrainingLogActivity,
   TrainingLogMetric,
@@ -201,7 +202,7 @@ const FILTER_FAMILIES = ['run', 'ride', 'swim', 'walk'] as const
 
 /** One option of the sport filter. */
 export interface SportFilterOption {
-  value: SportFilter
+  value: SportOption
   /** Set for families; a single type is labelled from its activity type. */
   labelKey?: string
   /** Set for single types. */
@@ -226,37 +227,53 @@ export function sportFilterOptions(typeCodes: readonly number[]): SportFilterOpt
   return options
 }
 
-/** Whether an activity type passes the sport filter. */
+/** The sport family one sport filter option belongs to. */
+function optionFamily(option: SportOption): SportFamily {
+  return option.startsWith('type-') ? sportFamily(Number(option.slice(5))) : (option as SportFamily)
+}
+
+/** Whether an activity type passes the sport filter: any ticked option, or none ticked. */
 export function matchesSport(activityType: number, filter: SportFilter): boolean {
-  if (filter === 'all') {
+  return (
+    filter.length === 0 ||
+    filter.some((option) =>
+      option.startsWith('type-')
+        ? activityType === Number(option.slice(5))
+        : sportFamily(activityType) === option,
+    )
+  )
+}
+
+/** Whether an activity's tags pass the tag filter: every ticked tag (so none ticked passes). */
+export function matchesTag(tags: readonly ActivityTagKey[], filter: TagFilter): boolean {
+  return filter.every((tag) => tags.includes(tag))
+}
+
+/** Splits a comma-separated query param into its distinct parts (`[]` for non-strings). */
+function queryList(value: unknown): string[] {
+  return typeof value === 'string' ? [...new Set(value.split(',').filter(Boolean))] : []
+}
+
+/** Whether a string is a sport filter option. */
+function isSportOption(value: string): value is SportOption {
+  if ((FILTER_FAMILIES as readonly string[]).includes(value)) {
     return true
   }
-  if (filter.startsWith('type-')) {
-    return activityType === Number(filter.slice(5))
-  }
-  return sportFamily(activityType) === filter
-}
-
-/** Whether an activity's tags pass the tag filter. */
-export function matchesTag(tags: readonly ActivityTagKey[], filter: TagFilter): boolean {
-  return filter === 'all' || tags.includes(filter)
-}
-
-/** Parses the `sport` query param; anything unknown means all sports. */
-export function parseSportFilter(value: unknown): SportFilter {
-  if (typeof value !== 'string') {
-    return 'all'
-  }
-  if ((FILTER_FAMILIES as readonly string[]).includes(value)) {
-    return value as SportFilter
-  }
   const match = /^type-(\d+)$/.exec(value)
-  return match && Number(match[1]) > 0 ? (value as SportFilter) : 'all'
+  return match !== null && Number(match[1]) > 0
 }
 
-/** Parses the `tag` query param; anything unknown means all tags. */
+/**
+ * Parses the `sport` query param, a comma-separated list such as
+ * `run,type-1001`; unknown entries are dropped, and none left means all sports.
+ */
+export function parseSportFilter(value: unknown): SportFilter {
+  return queryList(value).filter(isSportOption)
+}
+
+/** Parses the `tag` query param, a comma-separated list; unknown tags are dropped. */
 export function parseTagFilter(value: unknown): TagFilter {
-  return isActivityTagKey(value) ? value : 'all'
+  return queryList(value).filter(isActivityTagKey)
 }
 
 /** Parses the `metric` query param; defaults to time, as Strava does for runs. */
@@ -264,15 +281,12 @@ export function parseMetric(value: unknown): TrainingLogMetric {
   return value === 'distance' || value === 'elevation' ? value : 'time'
 }
 
-/** The sport family the filter shows (for the legend), or `null` for a mix. */
-export function filterFamily(filter: SportFilter): SportFamily | null {
-  if (filter === 'all') {
-    return null
-  }
-  if (filter.startsWith('type-')) {
-    return sportFamily(Number(filter.slice(5)))
-  }
-  return filter as SportFamily
+/**
+ * The sport families the filter shows (for the legend and the swim scale),
+ * in option order; `[]` when no sport is ticked.
+ */
+export function filterFamilies(filter: SportFilter): SportFamily[] {
+  return [...new Set(filter.map(optionFamily))]
 }
 
 // ---------------------------------------------------------------------------

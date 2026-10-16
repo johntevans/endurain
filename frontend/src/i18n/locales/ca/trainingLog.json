@@ -4,9 +4,11 @@
   "filters": {
     "sport": "Sport",
     "allSports": "All sports",
+    "sportCount": "{count} sports",
     "metric": "Measure",
     "tag": "Activity tag",
     "allTags": "All tags",
+    "tagCount": "{count} tags",
     "year": "Year"
   },
   "metrics": {

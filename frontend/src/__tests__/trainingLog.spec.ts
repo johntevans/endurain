@@ -5,7 +5,7 @@ import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
-import type { TrainingLogActivity } from '@/features/trainingLog/types'
+import type { SportFilter, TagFilter, TrainingLogActivity } from '@/features/trainingLog/types'
 
 import { apiFetch } from '@/services/http'
 import i18n from '@/i18n'
@@ -24,7 +24,7 @@ import {
   circleFraction,
   circleStyle,
   clusterScale,
-  filterFamily,
+  filterFamilies,
   formatClock,
   formatLogDuration,
   formatMetricValue,
@@ -210,29 +210,45 @@ describe('training log filters', () => {
   })
 
   it('matches sports, single types and tags', () => {
-    expect(matchesSport(2, 'run')).toBe(true)
-    expect(matchesSport(4, 'run')).toBe(false)
-    expect(matchesSport(14, 'type-14')).toBe(true)
-    expect(matchesSport(19, 'type-14')).toBe(false)
-    expect(matchesSport(19, 'all')).toBe(true)
-    expect(matchesTag(['race'], 'race')).toBe(true)
-    expect(matchesTag([], 'race')).toBe(false)
-    expect(matchesTag([], 'all')).toBe(true)
+    expect(matchesSport(2, ['run'])).toBe(true)
+    expect(matchesSport(4, ['run'])).toBe(false)
+    expect(matchesSport(14, ['type-14'])).toBe(true)
+    expect(matchesSport(19, ['type-14'])).toBe(false)
+    expect(matchesSport(19, [])).toBe(true)
+    // Ticked sports are alternatives: runs or physical therapy.
+    expect(matchesSport(2, ['run', 'type-1001'])).toBe(true)
+    expect(matchesSport(1001, ['run', 'type-1001'])).toBe(true)
+    expect(matchesSport(4, ['run', 'type-1001'])).toBe(false)
+    expect(matchesTag(['race'], ['race'])).toBe(true)
+    expect(matchesTag([], ['race'])).toBe(false)
+    expect(matchesTag([], [])).toBe(true)
+    // Ticked tags must all be there.
+    expect(matchesTag(['workout', 'long_run'], ['workout', 'long_run'])).toBe(true)
+    expect(matchesTag(['workout', 'long_run', 'race'], ['workout', 'long_run'])).toBe(true)
+    expect(matchesTag(['workout'], ['workout', 'long_run'])).toBe(false)
   })
 
   it('parses URL params, ignoring junk', () => {
-    expect(parseSportFilter('ride')).toBe('ride')
-    expect(parseSportFilter('type-14')).toBe('type-14')
-    expect(parseSportFilter('type-0')).toBe('all')
-    expect(parseSportFilter('other')).toBe('all')
-    expect(parseSportFilter(['run'])).toBe('all')
-    expect(parseTagFilter('nsm_long')).toBe('nsm_long')
-    expect(parseTagFilter('tempo')).toBe('all')
+    expect(parseSportFilter('ride')).toEqual(['ride'])
+    expect(parseSportFilter('type-14')).toEqual(['type-14'])
+    expect(parseSportFilter('run,type-1001,run')).toEqual(['run', 'type-1001'])
+    expect(parseSportFilter('type-0')).toEqual([])
+    expect(parseSportFilter('other,swim,')).toEqual(['swim'])
+    expect(parseSportFilter(['run'])).toEqual([])
+    expect(parseSportFilter(undefined)).toEqual([])
+    expect(parseTagFilter('nsm_long')).toEqual(['nsm_long'])
+    expect(parseTagFilter('workout,long_run')).toEqual(['workout', 'long_run'])
+    expect(parseTagFilter('tempo,race')).toEqual(['race'])
     expect(parseMetric('elevation')).toBe('elevation')
     expect(parseMetric('pace')).toBe('time')
-    expect(filterFamily('all')).toBeNull()
-    expect(filterFamily('type-14')).toBe('other')
-    expect(filterFamily('swim')).toBe('swim')
+    expect(filterFamilies([])).toEqual([])
+    expect(filterFamilies(['type-14'])).toEqual(['other'])
+    expect(filterFamilies(['swim'])).toEqual(['swim'])
+    expect(filterFamilies(['run', 'type-1001', 'swim', 'type-14'])).toEqual([
+      'run',
+      'other',
+      'swim',
+    ])
   })
 })
 
@@ -513,8 +529,8 @@ describe('TrainingLogYear', () => {
     const props = {
       year: 2026,
       weeks,
-      sport: 'all' as const,
-      tag: 'all' as const,
+      sport: [] as SportFilter,
+      tag: [] as TagFilter,
       metric: 'distance' as const,
       units: 'metric' as const,
       swim: false,
@@ -535,17 +551,28 @@ describe('TrainingLogYear', () => {
     const restDays = () => wrapper.findAll('[data-testid="training-log-rest"]').length
     const restBefore = restDays()
 
-    await wrapper.setProps({ sport: 'ride' })
+    await wrapper.setProps({ sport: ['ride'] })
     expect(wrapper.findAll('[data-style]')).toHaveLength(1)
     expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('0.0 km (0%)')
     // Filtering out Sunday's run does not turn Sunday into a rest day.
     expect(restDays()).toBe(restBefore)
     expect(wrapper.get('[data-testid="training-log-year-total"]').text()).toContain('12.0 km')
 
-    await wrapper.setProps({ sport: 'all', tag: 'long_run' })
+    await wrapper.setProps({ sport: ['run', 'ride'] })
+    expect(wrapper.findAll('[data-style]')).toHaveLength(3)
+
+    await wrapper.setProps({ sport: [], tag: ['long_run'] })
     expect(
       wrapper.findAll('[data-style]').map((circle) => circle.attributes('data-style')),
     ).toEqual(['long'])
+
+    // Every ticked tag must be on the activity.
+    await wrapper.setProps({ tag: ['long_run', 'nsm_long'] })
+    expect(wrapper.findAll('[data-style]')).toHaveLength(0)
+
+    // Sport and tag filters both apply.
+    await wrapper.setProps({ sport: ['ride'], tag: ['long_run'] })
+    expect(wrapper.findAll('[data-style]')).toHaveLength(0)
   })
 })
 
@@ -582,10 +609,18 @@ describe('TrainingLogView', () => {
     await router.push(path)
     await router.isReady()
     const wrapper = mount(TrainingLogView, {
+      attachTo: document.body,
       global: { ...withPlugins(), plugins: [...withPlugins().plugins, router] as never },
     })
     await flushPromises()
     return { wrapper, router }
+  }
+
+  /** Opens a filter pulldown; its menu is portalled to the document body. */
+  async function openMenu(wrapper: Awaited<ReturnType<typeof mountView>>['wrapper'], id: string) {
+    await wrapper.get(`${id} button`).trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    return [...document.body.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')]
   }
 
   it('shows every year since the first activity, with filters from the URL', async () => {
@@ -594,22 +629,74 @@ describe('TrainingLogView', () => {
     )
 
     const { wrapper, router } = await mountView(
-      '/training-log?sport=ride&metric=elevation&tag=race',
+      '/training-log?sport=ride&metric=elevation&tag=race,workout',
     )
 
     expect(
       wrapper.findAll('section[data-tl-year]').map((s) => s.attributes('data-tl-year')),
     ).toEqual(['2026', '2025'])
-    expect((wrapper.get('#training-log-sport').element as HTMLSelectElement).value).toBe('ride')
+    expect(wrapper.get('#training-log-sport').text()).toBe('Ride')
     expect((wrapper.get('#training-log-metric').element as HTMLSelectElement).value).toBe(
       'elevation',
     )
-    expect((wrapper.get('#training-log-tag').element as HTMLSelectElement).value).toBe('race')
+    expect(wrapper.get('#training-log-tag').text()).toBe('Race, Workout')
     expect(wrapper.text()).toContain('Total Elevation')
 
     await wrapper.get('#training-log-metric').setValue('time')
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({ sport: 'ride', tag: 'race' })
+    expect(router.currentRoute.value.query).toEqual({ sport: 'ride', tag: 'race,workout' })
+    wrapper.unmount()
+  })
+
+  it('ticks several sports and tags, keeping the menu open', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url: string) =>
+      url.endsWith('/range') ? { first_date: '2026-03-04', last_date: '2026-10-14' } : [],
+    )
+
+    const { wrapper, router } = await mountView('/training-log')
+    expect(wrapper.get('#training-log-sport').text()).toBe('All sports')
+
+    let items = await openMenu(wrapper, '#training-log-sport')
+    expect(items.map((item) => item.dataset.option)).toEqual(['all', 'run', 'ride', 'type-14'])
+    expect(items[0]?.getAttribute('aria-checked')).toBe('true')
+
+    // Ticked in any order, kept in option order.
+    items.find((item) => item.dataset.option === 'type-14')?.click()
+    await flushPromises()
+    items = [...document.body.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')]
+    expect(items).toHaveLength(4)
+    items.find((item) => item.dataset.option === 'run')?.click()
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ sport: 'run,type-14' })
+    items = [...document.body.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')]
+    expect(items.map((item) => item.getAttribute('aria-checked'))).toEqual([
+      'false',
+      'true',
+      'false',
+      'true',
+    ])
+
+    items.find((item) => item.dataset.option === 'ride')?.click()
+    await flushPromises()
+    expect(wrapper.get('#training-log-sport').text()).toBe('3 sports')
+
+    // "All sports" clears the ticks.
+    items[0]?.click()
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({})
+    expect(wrapper.get('#training-log-sport').text()).toBe('All sports')
+    wrapper.unmount()
+    await flushPromises()
+
+    const view = await mountView('/training-log')
+    items = await openMenu(view.wrapper, '#training-log-tag')
+    items.find((item) => item.dataset.option === 'workout')?.click()
+    await flushPromises()
+    items.find((item) => item.dataset.option === 'long_run')?.click()
+    await flushPromises()
+    expect(view.router.currentRoute.value.query).toEqual({ tag: 'workout,long_run' })
+    expect(view.wrapper.get('#training-log-tag').text()).toBe('Workout, Long Run')
+    view.wrapper.unmount()
   })
 
   it('offers sport options from the user types and an empty state without activities', async () => {
@@ -617,9 +704,7 @@ describe('TrainingLogView', () => {
 
     const { wrapper } = await mountView('/training-log')
 
-    expect(
-      wrapper.findAll('#training-log-sport option').map((option) => option.attributes('value')),
-    ).toEqual(['all', 'run', 'ride', 'type-14'])
     expect(wrapper.text()).toContain('No activities yet')
+    wrapper.unmount()
   })
 })

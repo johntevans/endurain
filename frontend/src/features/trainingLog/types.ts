@@ -52,13 +52,22 @@ export type TrainingLogMetric = 'time' | 'distance' | 'elevation'
 export type SportFamily = 'run' | 'ride' | 'swim' | 'walk' | 'other'
 
 /**
- * The sport filter: every activity, a family, or one activity type
- * (`type-14` for yoga) for types that belong to no family.
+ * One option of the sport filter: a family, or one activity type (`type-14`
+ * for yoga) for types that belong to no family.
  */
-export type SportFilter = 'all' | Exclude<SportFamily, 'other'> | `type-${number}`
+export type SportOption = Exclude<SportFamily, 'other'> | `type-${number}`
 
-/** The tag filter: every activity, or only those with one tag. */
-export type TagFilter = 'all' | ActivityTagKey
+/**
+ * The sport filter: the options ticked, in option order. An activity passes
+ * when it matches any of them; none ticked means every sport.
+ */
+export type SportFilter = readonly SportOption[]
+
+/**
+ * The tag filter: the tags ticked. An activity passes only when it has every
+ * one of them; none ticked means every activity.
+ */
+export type TagFilter = readonly ActivityTagKey[]
 
 /** How a circle is drawn: plain, long run (darker), workout (hatched) or race. */
 export type CircleStyle = 'base' | 'long' | 'workout' | 'race'

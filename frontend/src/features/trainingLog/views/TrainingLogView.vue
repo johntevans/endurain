@@ -7,13 +7,16 @@ import { CalendarRange } from '@lucide/vue'
 import type {
   SportFamily,
   SportFilter,
+  SportOption,
   TagFilter,
   TrainingLogMetric,
   TrainingLogWeek,
 } from '@/features/trainingLog/types'
+import type { ActivityTagKey } from '@/features/activityTags/types'
 
 import '@/features/trainingLog/trainingLog.css'
 import TrainingLogLegend from '@/features/trainingLog/components/TrainingLogLegend.vue'
+import TrainingLogMultiSelect from '@/features/trainingLog/components/TrainingLogMultiSelect.vue'
 import TrainingLogSideNav from '@/features/trainingLog/components/TrainingLogSideNav.vue'
 import TrainingLogYear from '@/features/trainingLog/components/TrainingLogYear.vue'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -29,7 +32,7 @@ import { ACTIVITY_TAGS } from '@/features/activityTags/utils/activityTags'
 import { presentActivityType } from '@/features/activities/utils/activityType'
 import {
   buildTrainingLogYears,
-  filterFamily,
+  filterFamilies,
   localTodayIso,
   monthWeekIndex,
   parseMetric,
@@ -55,22 +58,34 @@ const units = computed(() => currentUser.value?.units ?? 'metric')
 const firstDayOfWeek = computed(() => currentUser.value?.firstDayOfWeek ?? 'monday')
 const today = localTodayIso()
 
-// --- Filters (mirrored into the URL so a refresh or a shared link keeps them)
+// --- Filters (mirrored into the URL so a refresh or a shared link keeps them).
+// Sport and tag are lists (`?sport=run,type-1001&tag=workout,long_run`); an
+// empty list means all.
 const sport = ref<SportFilter>(parseSportFilter(route.query.sport))
 const metric = ref<TrainingLogMetric>(parseMetric(route.query.metric))
 const tag = ref<TagFilter>(parseTagFilter(route.query.tag))
 
 useRouteQueryReplacement(
   computed(() => ({
-    sport: sport.value === 'all' ? undefined : sport.value,
+    sport: sport.value.length === 0 ? undefined : sport.value.join(','),
     metric: metric.value === 'time' ? undefined : metric.value,
-    tag: tag.value === 'all' ? undefined : tag.value,
+    tag: tag.value.length === 0 ? undefined : tag.value.join(','),
   })),
 )
 
 const typeMapQuery = useUserActivityTypeMapQuery()
 const typeCodes = computed(() => [...(typeMapQuery.data.value?.keys() ?? [])])
-const sportOptions = computed(() => sportFilterOptions(typeCodes.value))
+const sportOptions = computed<Array<{ value: SportOption; label: string }>>(() =>
+  sportFilterOptions(typeCodes.value).map((option) => ({
+    value: option.value,
+    label: option.labelKey
+      ? t(option.labelKey)
+      : t(presentActivityType(option.activityType ?? 0).labelKey),
+  })),
+)
+const tagOptions = computed<Array<{ value: ActivityTagKey; label: string }>>(() =>
+  ACTIVITY_TAGS.map((option) => ({ value: option.key, label: t(option.labelKey) })),
+)
 
 const METRIC_OPTIONS: ReadonlyArray<{ value: TrainingLogMetric; labelKey: string }> = [
   { value: 'time', labelKey: 'trainingLog.metrics.time' },
@@ -78,19 +93,22 @@ const METRIC_OPTIONS: ReadonlyArray<{ value: TrainingLogMetric; labelKey: string
   { value: 'elevation', labelKey: 'trainingLog.metrics.elevation' },
 ]
 
-const selectedFamily = computed(() => filterFamily(sport.value))
-const swim = computed(() => selectedFamily.value === 'swim')
+// Distances read in swim units only when swimming is all that is shown.
+const selectedFamilies = computed(() => filterFamilies(sport.value))
+const swim = computed(
+  () => selectedFamilies.value.length === 1 && selectedFamilies.value[0] === 'swim',
+)
 const legendFamilies = computed<SportFamily[]>(() => {
-  if (selectedFamily.value) {
-    return [selectedFamily.value]
+  if (selectedFamilies.value.length > 0) {
+    return selectedFamilies.value
   }
   const present = new Set(typeCodes.value.map(sportFamily))
   return (['run', 'ride', 'swim', 'walk', 'other'] as const).filter((family) => present.has(family))
 })
-const legendStyleFamily = computed<SportFamily>(
-  () => selectedFamily.value ?? legendFamilies.value[0] ?? 'run',
+const legendStyleFamily = computed<SportFamily>(() => legendFamilies.value[0] ?? 'run')
+const showLongRun = computed(
+  () => selectedFamilies.value.length === 0 || selectedFamilies.value.includes('run'),
 )
-const showLongRun = computed(() => selectedFamily.value === null || selectedFamily.value === 'run')
 
 // --- Years and weeks
 const rangeQuery = useTrainingLogRangeQuery()
@@ -233,19 +251,15 @@ const yearPicker = computed<number>({
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <div>
-          <Label for="training-log-sport" class="sr-only">{{
-            t('trainingLog.filters.sport')
-          }}</Label>
-          <Select id="training-log-sport" v-model="sport" class="w-full sm:w-48">
-            <option value="all">{{ t('trainingLog.filters.allSports') }}</option>
-            <option v-for="option in sportOptions" :key="option.value" :value="option.value">
-              {{
-                option.labelKey
-                  ? t(option.labelKey)
-                  : t(presentActivityType(option.activityType ?? 0).labelKey)
-              }}
-            </option>
-          </Select>
+          <TrainingLogMultiSelect
+            id="training-log-sport"
+            :label="t('trainingLog.filters.sport')"
+            v-model="sport"
+            :options="sportOptions"
+            :all-label="t('trainingLog.filters.allSports')"
+            :count-label="(count) => t('trainingLog.filters.sportCount', { count })"
+            class="w-full sm:w-48"
+          />
         </div>
         <div>
           <Label for="training-log-metric" class="sr-only">{{
@@ -258,13 +272,15 @@ const yearPicker = computed<number>({
           </Select>
         </div>
         <div>
-          <Label for="training-log-tag" class="sr-only">{{ t('trainingLog.filters.tag') }}</Label>
-          <Select id="training-log-tag" v-model="tag" class="w-full sm:w-48">
-            <option value="all">{{ t('trainingLog.filters.allTags') }}</option>
-            <option v-for="option in ACTIVITY_TAGS" :key="option.key" :value="option.key">
-              {{ t(option.labelKey) }}
-            </option>
-          </Select>
+          <TrainingLogMultiSelect
+            id="training-log-tag"
+            :label="t('trainingLog.filters.tag')"
+            v-model="tag"
+            :options="tagOptions"
+            :all-label="t('trainingLog.filters.allTags')"
+            :count-label="(count) => t('trainingLog.filters.tagCount', { count })"
+            class="w-full sm:w-48"
+          />
         </div>
         <div v-if="years.length > 1" class="lg:hidden">
           <Label for="training-log-year" class="sr-only">{{ t('trainingLog.filters.year') }}</Label>
