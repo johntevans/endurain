@@ -88,9 +88,11 @@ export default defineConfig({
       // reloads clients without an in-app prompt.
       registerType: 'autoUpdate',
       strategies: 'generateSW',
-      // Register via an external /registerSW.js script (not an inline script)
-      // so registration complies with the strict `script-src 'self'` CSP.
-      injectRegister: 'script-defer',
+      // homelab fork: registered from the app bundle (src/lib/registerServiceWorker.ts)
+      // instead of the injected /registerSW.js, which only registered the worker
+      // and never reloaded the page, so updates showed only after a full reload.
+      // The bundle is 'self', so the strict `script-src 'self'` CSP still holds.
+      injectRegister: false,
       // The installable manifest is the hand-authored public/site.webmanifest
       // already linked from index.html; let it remain the single source.
       manifest: false,

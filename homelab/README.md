@@ -54,7 +54,12 @@ against endurain-project, and the fix comes back with the next release tag; ever
 one fewer diff to carry. Candidates found so far, documented in homelab-ops
 `mac-mini/endurain/README.md`: TCX lap pace stored in km/h (3.6× too fast), one bad file
 silently ending a Strava bulk import, `tcxreader`'s `only_gps=True` dropping indoor sessions,
-and a fractional FIT `total_ascent` failing the `int` schema. If one is needed in production
+and a fractional FIT `total_ascent` failing the `int` schema. Also the installed PWA never
+reloading onto a new deploy: the injected `registerSW.js` only registers the worker, so the
+open page keeps the old bundle (an iOS home-screen app resumes rather than reloads, so it
+showed old frontends for days). The fork registers from the bundle instead
+(`frontend/src/lib/registerServiceWorker.ts`, `injectRegister: false`): it reloads when a new
+worker takes over and checks for one whenever the app returns to the foreground. If one is needed in production
 before upstream releases it, cherry-pick it onto `homelab`; git drops the duplicate on the next
 merge.
 

@@ -13,6 +13,7 @@ import { useTelemetry } from './composables/useTelemetry'
 import { useToasts } from './composables/useToasts'
 import { VueQueryPlugin, vueQueryOptions } from './plugins/vueQuery'
 import { registerRenderProviders } from './providers'
+import { registerServiceWorker } from './lib/registerServiceWorker' // homelab fork
 import { onSessionExpired } from './services/sessionExpiry'
 import { useAuthStore } from './features/auth/stores/auth'
 
@@ -67,6 +68,8 @@ async function bootstrap(): Promise<void> {
   await router.isReady()
 
   app.mount('#app')
+
+  registerServiceWorker() // homelab fork: reloads onto a new deploy
 }
 
 void bootstrap().catch((error: unknown) => {
