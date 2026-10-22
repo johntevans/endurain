@@ -11,6 +11,7 @@ import health.health_steps.crud as health_steps_crud
 import health.health_steps.schema as health_steps_schema
 import health.health_weight.crud as health_weight_crud
 import health.health_weight.schema as health_weight_schema
+import homelab.eight_sleep.client as homelab_eight_sleep_client  # homelab fork
 import notifications.utils as notifications_utils
 import users.users.crud as users_crud
 import users.users_integrations.crud as user_integrations_crud
@@ -496,8 +497,11 @@ async def get_user_garminconnect_health_by_dates(
                 garminconnect_client, start_date, end_date, user_id, db
             )
 
-            num_garminconnect_sleep_processed = fetch_and_process_sleep_by_dates(
-                garminconnect_client, start_date, end_date, user_id, db
+            # homelab fork: Eight Sleep owns sleep when configured (one row per date, last writer wins)
+            num_garminconnect_sleep_processed = (
+                0
+                if homelab_eight_sleep_client.owns_sleep()
+                else fetch_and_process_sleep_by_dates(garminconnect_client, start_date, end_date, user_id, db)
             )
 
             core_logger.print_to_log(

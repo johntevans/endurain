@@ -268,6 +268,45 @@ average-pace line, and at most six x-axis labels on every stream chart. It needs
 provider options `yRange`, `xMaxTicks` and a series' `legend: false` (upstream edits in
 `useChartProvider.ts` and `chartJsChartProvider.ts`).
 
+### Eight Sleep sleep sync
+
+`backend/app/homelab/eight_sleep/` makes Eight Sleep the source of sleep data. It is on when
+`EIGHT_SLEEP_EMAIL` and `EIGHT_SLEEP_PASSWORD` are in the environment, and does nothing
+without them, which is why the dev stack never syncs. There is no public API, so it uses the
+private endpoints the mobile app uses (the per-day `trends` call, as the maintained pyEight
+fork does). A change on Eight Sleep's side stops it, and the homelab-ops monitoring is what
+notices.
+
+- **One row per date, from the day's main session** (`mainSessionId`). Eight Sleep's day totals
+  cover only that session, so a second session the same day changes nothing. Eight Sleep's score
+  is stored as the overall score, so it matches the app, and the quality label follows it.
+- **Daytime sessions are skipped**: a main session starting 06:00–18:00 local is not imported.
+  On days with no overnight session Eight Sleep promotes whatever else it recorded to "main",
+  and in October 2026 that was someone else on the bed (avg HR ~75 against ~47, scoring
+  28–31). A genuine afternoon nap is skipped too.
+- **Only `processing` means unfinished.** `incomplete: true` is not: 51 finished 2024 nights
+  carry it permanently, alongside a full score and stages.
+- **Corrections arrive by re-reading.** Eight Sleep sends no change feed, so the job re-syncs
+  the last 30 days hourly and the full history (to 2022-08 here, about 1 min) daily. Each run
+  reconciles its window: created or overwritten from Eight Sleep, and an `eight_sleep` row
+  whose night is gone is deleted. Rows from another source are never deleted, rows entered by
+  hand are never overwritten, a failed fetch writes nothing, and an empty answer for a window
+  that holds Eight Sleep rows deletes nothing. At startup it backfills if no Eight Sleep rows
+  exist yet, and syncs the last 30 days otherwise.
+- **Garmin stands aside.** When Eight Sleep is configured, upstream's Garmin health sync skips
+  its sleep fetch (marked `homelab fork` in `garmin/health_utils.py`). Both write one row per
+  date and the last writer would win. Weight and steps still come from Garmin.
+- **Upstream edits**: the `eight_sleep` value in the sleep `Source` enum (`health_sleep/schema.py`;
+  without it upstream's read schema rejects the rows), the Garmin gate above, and job
+  registration in `main.py`. Data only, no schema. Rolling back to vanilla leaves rows whose
+  `source` upstream's enum rejects, so delete `source = 'eight_sleep'` rows before doing that.
+  The frontend shows them without the Garmin icon and needs no change.
+- Testing against real data without repointing the shared dev stack: run the code in a
+  throwaway `endurain-dev:local` container on the `endurain-dev_default` network, with the
+  checkout's `backend/app` mounted read-only and the credentials in a temporary `--env-file`.
+  `import main` first, so every model is mapped. Delete the rows afterwards: the served dev
+  backend may run code without the enum value.
+
 ## Dev stack
 
 Runs on the Claude session host (`johns-mac-mini-old`) in OrbStack, with a **copy of

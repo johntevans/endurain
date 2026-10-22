@@ -24,6 +24,7 @@ class Source(Enum):
     """
 
     GARMIN = "garmin"
+    EIGHT_SLEEP = "eight_sleep"  # homelab fork: homelab/eight_sleep
 
 
 class SleepStageType(Enum):
