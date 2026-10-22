@@ -13,7 +13,11 @@ import ActivityLoadPill from '@/features/trainingLoad/components/ActivityLoadPil
 import FitnessView from '@/features/trainingLoad/views/FitnessView.vue'
 import { mapActivityLoad, mapFitness } from '@/features/trainingLoad/services/trainingLoad'
 import {
+  FORM_ZONE_COLORS,
   fitnessRangeDates,
+  formAxisRange,
+  formZone,
+  formZoneBands,
   fitnessWeekRows,
   formatSigned,
   formatSignedDecimal,
@@ -214,6 +218,10 @@ describe('FitnessView (homelab fork)', () => {
     expect(todayCard).toContain('36')
     expect(todayCard).toContain('+13')
     expect(todayCard).toContain('-5.0')
+    expect(wrapper.get('[data-testid="fitness-form-zone"]').text()).toBe('Fresh')
+    expect(wrapper.get('[data-testid="fitness-zone-legend"]').text()).toContain('High Risk')
+    // -9.5 shows as -9, so Grey Zone.
+    expect(wrapper.get('[data-testid="fitness-weeks"]').text()).toContain('Grey Zone')
     expect(wrapper.findAll('[data-testid="fitness-weeks"] tbody tr')).toHaveLength(2)
     expect(wrapper.find('[data-testid="fitness-warmup"]').exists()).toBe(false)
   })
@@ -235,5 +243,83 @@ describe('chart hover by x position (homelab fork)', () => {
     expect(hovered.options?.interaction).toEqual({ mode: 'index', intersect: false })
     const plain = buildChartConfiguration({ kind: 'line', series: [{ label: 'A', data: [1] }] })
     expect(plain.options?.interaction).toBeUndefined()
+  })
+})
+
+describe('form zones (homelab fork)', () => {
+  it.each([
+    [21, 'transition'],
+    [20.4, 'fresh'],
+    [17, 'fresh'],
+    [5.6, 'fresh'],
+    [5, 'grey'],
+    [0, 'grey'],
+    [-10.4, 'grey'],
+    [-10.6, 'optimal'],
+    [-30, 'optimal'],
+    [-31, 'highRisk'],
+  ] as const)('form %s is %s, judged on the number shown', (form, zone) => {
+    expect(formZone(form)).toBe(zone)
+  })
+
+  it('bands every zone between the drawn edges, out to the axis range', () => {
+    const colors = FORM_ZONE_COLORS.light
+    expect(formZoneBands({ min: -45, max: 30 }, colors)).toEqual([
+      { from: 20, to: 30, color: colors.transition },
+      { from: 5, to: 20, color: colors.fresh },
+      { from: -10, to: 5, color: colors.grey },
+      { from: -30, to: -10, color: colors.optimal },
+      { from: -45, to: -30, color: colors.highRisk },
+    ])
+  })
+
+  it('keeps every zone edge on the axis and makes room for the data', () => {
+    expect(formAxisRange([-8, 13])).toEqual({ min: -40, max: 25 })
+    expect(formAxisRange([-38.2, 24.5])).toEqual({ min: -44, max: 30 })
+    expect(formAxisRange([])).toEqual({ min: -40, max: 25 })
+  })
+})
+
+describe('chart zone options (homelab fork)', () => {
+  it('passes bands, fixed ticks, segment colours and no fill through to Chart.js', () => {
+    const config = buildChartConfiguration({
+      kind: 'line',
+      series: [
+        {
+          label: 'Form',
+          data: [-12, 8],
+          color: '#a6a6ae',
+          fill: false,
+          segmentColor: (value) => (value > 5 ? '#2a86cf' : '#5cbd45'),
+        },
+      ],
+      yBands: [{ from: 5, to: 20, color: '#2a86cf' }],
+      yTicks: [20, 5, -10, -30],
+    })
+    const dataset = config.data.datasets[0] as unknown as {
+      fill: unknown
+      segment: { borderColor: (ctx: unknown) => string }
+    }
+    expect(dataset.fill).toBe(false)
+    expect(dataset.segment.borderColor({ p1: { parsed: { y: 8 } } })).toBe('#2a86cf')
+    expect(config.options?.plugins?.homelabYBands).toEqual({
+      bands: [{ from: 5, to: 20, color: '#2a86cf' }],
+    })
+    const axis = { ticks: [{ value: 1 }] }
+    ;(config.options?.scales?.y as { afterBuildTicks: (a: typeof axis) => void }).afterBuildTicks(
+      axis,
+    )
+    expect(axis.ticks).toEqual([{ value: 20 }, { value: 5 }, { value: -10 }, { value: -30 }])
+  })
+
+  it('leaves charts without them as before', () => {
+    const config = buildChartConfiguration({ kind: 'line', series: [{ label: 'A', data: [1] }] })
+    const dataset = config.data.datasets[0] as unknown as { fill: unknown; segment?: unknown }
+    expect(dataset.fill).toBe(true)
+    expect(dataset.segment).toBeUndefined()
+    expect(config.options?.plugins?.homelabYBands).toEqual({ bands: [] })
+    expect(
+      (config.options?.scales?.y as { afterBuildTicks?: unknown }).afterBuildTicks,
+    ).toBeUndefined()
   })
 })

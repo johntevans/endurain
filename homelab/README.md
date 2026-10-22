@@ -204,6 +204,15 @@ rebuilds the series from `homelab.activity_loads` on each request
   shows them.
 - The chart provider gained a `hoverIndex` option (marked `homelab fork`), which shows every
   series at the hovered date.
+- **Form zones**, as on Intervals' absolute form scale: Transition above +20, Fresh +5 to +20,
+  Grey Zone −10 to +5, Optimal −30 to −10 and High Risk below −30. A value is judged on the whole
+  number shown. The Form chart colours each line segment by zone over tinted bands, with the
+  zone edges as its ticks. Today's Form tile names its zone, a legend lists the zones, and the
+  weekly table marks each week's zone. Colours are per theme (`FORM_ZONE_COLORS` in
+  `utils/fitness.ts`) and passed the dataviz palette validator against both card surfaces;
+  every zone also has its name, so nothing depends on colour alone. The provider options
+  behind this, all marked `homelab fork`: `yBands`, `yTicks`, a series' `segmentColor` and
+  `fill: false`. The provider's `update()` now also refreshes the y-axis and bands.
 
 ### Fork-only activity types
 

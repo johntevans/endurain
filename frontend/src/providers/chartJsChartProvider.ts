@@ -6,16 +6,64 @@
  * The pure {@link buildChartConfiguration} helper is exported so the seam →
  * Chart.js translation can be unit-tested without a canvas.
  */
-import { Chart, registerables, type ChartConfiguration, type ChartDataset } from 'chart.js'
+import {
+  Chart,
+  registerables,
+  type ChartConfiguration,
+  type ChartDataset,
+  type ChartType,
+  type Plugin,
+} from 'chart.js'
 import zoomPlugin from 'chartjs-plugin-zoom'
 
 import type {
   ChartInstance,
   ChartProvider,
   ChartRenderOptions,
+  ChartYBand,
 } from '@/composables/useChartProvider'
 
-Chart.register(...registerables, zoomPlugin)
+declare module 'chart.js' {
+  interface PluginOptionsByType<TType extends ChartType> {
+    /** homelab fork: tinted y-axis bands (see yBandsPlugin). */
+    homelabYBands?: { bands?: ChartYBand[] }
+  }
+}
+
+/** homelab fork: opacity of a y-band's tint. */
+const Y_BAND_ALPHA = 0.1
+
+/**
+ * homelab fork: draws `options.plugins.homelabYBands` (from `yBands`) as tinted
+ * stripes across the chart area, behind the datasets.
+ */
+const yBandsPlugin: Plugin<'line' | 'bar'> = {
+  id: 'homelabYBands',
+  beforeDatasetsDraw(chart) {
+    const bands = chart.options.plugins?.homelabYBands?.bands
+    const y = chart.scales.y
+    if (!bands?.length || !y) {
+      return
+    }
+    const { left, right, top, bottom } = chart.chartArea
+    const { ctx } = chart
+    ctx.save()
+    for (const band of bands) {
+      if (band.from === undefined || band.to === undefined || !band.color) {
+        continue
+      }
+      const upper = Math.max(top, Math.min(bottom, y.getPixelForValue(band.to)))
+      const lower = Math.max(top, Math.min(bottom, y.getPixelForValue(band.from)))
+      if (lower > upper) {
+        ctx.fillStyle = hexToRgba(band.color, Y_BAND_ALPHA)
+        ctx.fillRect(left, upper, right - left, lower - upper)
+      }
+    }
+    ctx.restore()
+  },
+}
+
+Chart.register(...registerables, zoomPlugin, yBandsPlugin)
 
 /** Design-token-aligned series palette, brand teal first. */
 export const DEFAULT_CHART_PALETTE: readonly string[] = [
@@ -102,7 +150,8 @@ export function buildChartConfiguration(
     }
     // Line/area charts get a flat translucent fill below the line (a calm tint,
     // not a gradient — per the design system); bars stay solid.
-    const filled = type === 'line'
+    const filled = type === 'line' && series.fill !== false // homelab fork: opt-out
+    const segmentColor = series.segmentColor
     return {
       label: series.label,
       data: series.data,
@@ -114,6 +163,15 @@ export function buildChartConfiguration(
       fill: filled && options.invertY ? 'start' : filled,
       tension: 0.3,
       pointRadius: 0,
+      // homelab fork: per-segment colour (zones), by the value the segment ends at.
+      ...(segmentColor && type === 'line'
+        ? {
+            segment: {
+              borderColor: (ctx: { p1: { parsed: { y: number } } }) =>
+                segmentColor(ctx.p1.parsed.y),
+            },
+          }
+        : {}),
     }
   })
 
@@ -130,6 +188,8 @@ export function buildChartConfiguration(
       // homelab fork: optional hover by x position.
       ...(options.hoverIndex ? { interaction: { mode: 'index' as const, intersect: false } } : {}),
       plugins: {
+        // homelab fork: zone bands (see yBandsPlugin).
+        homelabYBands: { bands: options.yBands ?? [] },
         // homelab fork: series with `legend: false` don't count or show.
         legend: {
           display: options.series.filter((series) => series.legend !== false).length > 1,
@@ -183,6 +243,14 @@ export function buildChartConfiguration(
           // homelab fork: optional fixed bounds.
           min: options.yRange?.min,
           max: options.yRange?.max,
+          // homelab fork: optional exact ticks (e.g. zone edges).
+          ...(options.yTicks
+            ? {
+                afterBuildTicks: (axis: { ticks: Array<{ value: number }> }) => {
+                  axis.ticks = (options.yTicks ?? []).map((value) => ({ value }))
+                },
+              }
+            : {}),
           ticks: {
             stepSize: options.yRange?.step,
             ...(options.valueFormat
@@ -226,6 +294,15 @@ export function createChartJsChartProvider(config: ChartJsChartProviderConfig = 
             return
           }
           chart.data = nextConfig.data
+          // homelab fork: the y-axis and its bands follow the data (a new
+          // range moves the zone bands' clipping and the fixed ticks); the
+          // x-axis, which holds any zoom, is left alone.
+          if (chart.options.scales && nextConfig.options?.scales?.y) {
+            chart.options.scales.y = nextConfig.options.scales.y
+          }
+          if (chart.options.plugins) {
+            chart.options.plugins.homelabYBands = nextConfig.options?.plugins?.homelabYBands
+          }
           chart.update()
         },
         destroy(): void {

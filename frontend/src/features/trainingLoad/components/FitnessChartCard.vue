@@ -22,5 +22,7 @@ useHealthMetricChart(() => props.render)
   <HealthChartCard :title="title" :accent-color="accentColor">
     <!-- min-w-0 lets the canvas shrink inside the grid on mobile. -->
     <div ref="chartContainer" class="relative h-56 w-full min-w-0" />
+    <!-- Anything under the chart, e.g. a legend of zones. -->
+    <slot />
   </HealthChartCard>
 </template>

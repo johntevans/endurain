@@ -6,6 +6,7 @@ import { TrendingUp } from '@lucide/vue'
 
 import type { ChartRenderOptions } from '@/composables/useChartProvider'
 import type { FitnessRangeKey } from '@/features/trainingLoad/types'
+import type { FormZoneKey } from '@/features/trainingLoad/utils/fitness'
 
 import FitnessChartCard from '@/features/trainingLoad/components/FitnessChartCard.vue'
 import { Card } from '@/components/ui/card'
@@ -17,11 +18,18 @@ import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { themeColor } from '@/lib/themeColor'
 import { useRouteQueryReplacement } from '@/composables/useRouteQuery'
+import { useTheme } from '@/composables/useTheme'
 import { useCurrentUser } from '@/features/auth/composables/useCurrentUser'
 import { useFitnessQuery } from '@/features/trainingLoad/composables/useTrainingLoad'
 import {
   DEFAULT_FITNESS_RANGE,
   FITNESS_RANGES,
+  FORM_ZONE_COLORS,
+  FORM_ZONE_TICKS,
+  FORM_ZONES,
+  formAxisRange,
+  formZone,
+  formZoneBands,
   fitnessRangeDates,
   fitnessWeekRows,
   formatSigned,
@@ -55,7 +63,6 @@ const current = computed(() => days.value[days.value.length - 1] ?? null)
 // Validated together (scripts/validate_palette.js, light and dark card surfaces).
 const FITNESS_COLOR = themeColor('--color-info')
 const FATIGUE_COLOR = themeColor('--color-hr')
-const FORM_COLOR = themeColor('--color-brand')
 const LOAD_COLOR = themeColor('--color-brand-mid')
 
 const dateLabels = computed(() => {
@@ -83,24 +90,48 @@ const fitnessChart = computed<ChartRenderOptions>(() => ({
       label: t('trainingLoad.fitness.fatigue'),
       data: days.value.map((day) => day.fatigue),
       color: FATIGUE_COLOR,
+      // A line over fitness's filled area, as on Intervals' chart.
+      fill: false,
     },
   ],
 }))
 
-const formChart = computed<ChartRenderOptions>(() => ({
-  kind: 'line',
-  labels: dateLabels.value,
-  xMaxTicks: 6,
-  hoverIndex: true,
-  valueFormat: formatSigned,
-  series: [
-    {
-      label: t('trainingLoad.fitness.form'),
-      data: days.value.map((day) => day.form),
-      color: FORM_COLOR,
-    },
-  ],
-}))
+// Intervals' form zones: the line takes each zone's colour over tinted bands,
+// with the zone edges as the axis ticks. Colours follow the theme.
+const { theme } = useTheme()
+const zoneColors = computed(() => FORM_ZONE_COLORS[theme.value])
+const zoneOf = (form: number): { key: FormZoneKey; color: string } => {
+  const key = formZone(form)
+  return { key, color: zoneColors.value[key] }
+}
+const currentZone = computed(() => (current.value ? zoneOf(current.value.form) : null))
+const zoneLegend = computed(() =>
+  FORM_ZONES.map((zone) => ({ key: zone.key, color: zoneColors.value[zone.key] })),
+)
+
+const formChart = computed<ChartRenderOptions>(() => {
+  const forms = days.value.map((day) => day.form)
+  const range = formAxisRange(forms)
+  return {
+    kind: 'line',
+    labels: dateLabels.value,
+    xMaxTicks: 6,
+    hoverIndex: true,
+    valueFormat: formatSigned,
+    yRange: range,
+    yTicks: FORM_ZONE_TICKS,
+    yBands: formZoneBands(range, zoneColors.value),
+    series: [
+      {
+        label: t('trainingLoad.fitness.form'),
+        data: forms,
+        color: zoneColors.value.grey,
+        fill: false,
+        segmentColor: (form) => zoneOf(form).color,
+      },
+    ],
+  }
+})
 
 const loadChart = computed<ChartRenderOptions>(() => ({
   kind: 'bar',
@@ -189,7 +220,21 @@ const warmup = computed(() => {
           :value="formatWhole(current.fatigue)"
           accent="hr"
         />
-        <MetricPill :label="t('trainingLoad.fitness.form')" :value="formatSigned(current.form)" />
+        <div class="flex flex-col gap-1">
+          <MetricPill :label="t('trainingLoad.fitness.form')" :value="formatSigned(current.form)" />
+          <span
+            v-if="currentZone"
+            class="flex items-center gap-1.5 text-hint"
+            data-testid="fitness-form-zone"
+          >
+            <span
+              class="size-2.5 shrink-0 rounded-full"
+              :style="{ backgroundColor: currentZone.color }"
+              aria-hidden="true"
+            />
+            {{ t(`trainingLoad.fitness.zones.${currentZone.key}`) }}
+          </span>
+        </div>
         <MetricPill
           :label="t('trainingLoad.fitness.ramp')"
           :value="formatSignedDecimal(current.ramp)"
@@ -198,18 +243,38 @@ const warmup = computed(() => {
 
       <p v-if="warmup" class="text-hint" data-testid="fitness-warmup">{{ warmup }}</p>
 
-      <div class="grid gap-3 lg:grid-cols-2">
+      <!-- One column, so the charts' dates line up (as on Intervals). -->
+      <div class="flex flex-col gap-3">
         <FitnessChartCard
-          class="lg:col-span-2"
           :title="t('trainingLoad.fitness.fitnessChart')"
           :accent-color="FITNESS_COLOR"
           :render="fitnessChart"
         />
         <FitnessChartCard
           :title="t('trainingLoad.fitness.form')"
-          :accent-color="FORM_COLOR"
+          :accent-color="currentZone?.color ?? zoneColors.grey"
           :render="formChart"
-        />
+        >
+          <ul
+            class="flex flex-wrap gap-x-4 gap-y-1"
+            :aria-label="t('trainingLoad.fitness.zones.title')"
+            data-testid="fitness-zone-legend"
+          >
+            <li
+              v-for="zone in zoneLegend"
+              :key="zone.key"
+              class="flex items-center gap-1.5 text-hint"
+            >
+              <span
+                class="size-2.5 shrink-0 rounded-full"
+                :style="{ backgroundColor: zone.color }"
+                aria-hidden="true"
+              />
+              <span class="text-foreground">{{ t(`trainingLoad.fitness.zones.${zone.key}`) }}</span>
+              <span>{{ t(`trainingLoad.fitness.zones.range.${zone.key}`) }}</span>
+            </li>
+          </ul>
+        </FitnessChartCard>
         <FitnessChartCard
           :title="t('trainingLoad.fitness.dailyLoad')"
           :accent-color="LOAD_COLOR"
@@ -253,7 +318,22 @@ const warmup = computed(() => {
                 <td class="px-3 py-2 text-end tabular-nums">{{ formatWhole(week.load) }}</td>
                 <td class="px-3 py-2 text-end tabular-nums">{{ formatWhole(week.fitness) }}</td>
                 <td class="px-3 py-2 text-end tabular-nums">{{ formatWhole(week.fatigue) }}</td>
-                <td class="px-3 py-2 text-end tabular-nums">{{ formatSigned(week.form) }}</td>
+                <td class="px-3 py-2 text-end tabular-nums">
+                  <span
+                    class="inline-flex items-center justify-end gap-1.5"
+                    :title="t(`trainingLoad.fitness.zones.${zoneOf(week.form).key}`)"
+                  >
+                    <span
+                      class="size-2 shrink-0 rounded-full"
+                      :style="{ backgroundColor: zoneOf(week.form).color }"
+                      aria-hidden="true"
+                    />
+                    {{ formatSigned(week.form) }}
+                    <span class="sr-only">{{
+                      t(`trainingLoad.fitness.zones.${zoneOf(week.form).key}`)
+                    }}</span>
+                  </span>
+                </td>
                 <td class="hidden py-2 ps-3 text-end tabular-nums sm:table-cell">
                   {{ formatSignedDecimal(week.ramp) }}
                 </td>

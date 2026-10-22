@@ -29,6 +29,23 @@ export interface ChartSeries {
   dashed?: boolean
   /** homelab fork: `false` leaves the series out of the legend (e.g. an average line). */
   legend?: boolean
+  /** homelab fork: `false` draws a line without the tinted fill below it. */
+  fill?: boolean
+  /**
+   * homelab fork: colours each line segment by the value it ends at (e.g. a
+   * zone colour); the series `color` still marks it in legends and tooltips.
+   */
+  segmentColor?: (value: number) => string
+}
+
+/** homelab fork: a horizontal band of the y-axis tinted behind the data (a zone). */
+export interface ChartYBand {
+  /** Lower edge, in raw values. */
+  from: number
+  /** Upper edge, in raw values. */
+  to: number
+  /** 6-digit hex colour; drawn as a light tint. */
+  color: string
 }
 
 /** Options controlling a single chart render. */
@@ -69,6 +86,10 @@ export interface ChartRenderOptions {
    * value there, instead of only when the pointer is on a line.
    */
   hoverIndex?: boolean
+  /** homelab fork: tinted y-axis bands drawn behind the series (zones). */
+  yBands?: ChartYBand[]
+  /** homelab fork: exactly these y-axis ticks (e.g. zone edges) instead of automatic ones. */
+  yTicks?: number[]
   /**
    * Enables interactive pan/zoom along the x-axis (wheel + drag on desktop,
    * pinch on touch). Providers without zoom support ignore this.

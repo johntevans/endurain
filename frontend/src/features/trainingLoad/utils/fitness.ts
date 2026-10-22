@@ -91,3 +91,87 @@ export function formatSignedDecimal(value: number): string {
   const fixed = (Math.round(value * 10) / 10 || 0).toFixed(1)
   return value >= 0.05 ? `+${fixed}` : fixed
 }
+
+/** Intervals.icu's form zones, top to bottom. */
+export type FormZoneKey = 'transition' | 'fresh' | 'grey' | 'optimal' | 'highRisk'
+
+/**
+ * The zones' edges on Intervals' absolute form scale (the owner's setting):
+ * Transition above +20, Fresh +5 to +20, Grey Zone -10 to +5, Optimal -30 to
+ * -10, High Risk below -30. `min` is the zone's lowest value, inclusive.
+ */
+export const FORM_ZONES: ReadonlyArray<{ key: FormZoneKey; min: number }> = [
+  { key: 'transition', min: 21 },
+  { key: 'fresh', min: 6 },
+  { key: 'grey', min: -10 },
+  { key: 'optimal', min: -30 },
+  { key: 'highRisk', min: Number.NEGATIVE_INFINITY },
+]
+
+/** The edges Intervals draws as the form axis's ticks. */
+export const FORM_ZONE_TICKS = [20, 5, -10, -30]
+
+/**
+ * The zone a form value falls in, judged on the whole number shown (so a
+ * displayed +5 is Grey Zone, as its label says).
+ */
+export function formZone(form: number): FormZoneKey {
+  const shown = Math.round(form) || 0
+  return FORM_ZONES.find((zone) => shown >= zone.min)?.key ?? 'highRisk'
+}
+
+/**
+ * Zone colours, picked per theme and checked with the dataviz palette
+ * validator against the card surface (colour-blind separation >= 11 ΔE between
+ * neighbouring zones, normal vision >= 15). Grey Zone is the neutral middle
+ * of a diverging scale; every zone also carries its name.
+ */
+export const FORM_ZONE_COLORS: Record<'light' | 'dark', Record<FormZoneKey, string>> = {
+  light: {
+    transition: '#d9930f',
+    fresh: '#2a86cf',
+    grey: '#a6a6ae',
+    optimal: '#5cbd45',
+    highRisk: '#9b1c1c',
+  },
+  dark: {
+    transition: '#c4820f',
+    fresh: '#4596e0',
+    grey: '#6b6b73',
+    optimal: '#55ad3d',
+    highRisk: '#c4372b',
+  },
+}
+
+/**
+ * Tinted bands for the form chart, one per zone, clipped to the axis range.
+ *
+ * @param range - The y-axis bounds.
+ * @param colors - The theme's zone colours.
+ */
+export function formZoneBands(
+  range: { min: number; max: number },
+  colors: Record<FormZoneKey, string>,
+): Array<{ from: number; to: number; color: string }> {
+  // Bands meet at the drawn ticks (20, 5, -10, -30), not at the whole-number
+  // edges the zone test uses.
+  const edges: Record<FormZoneKey, [number, number]> = {
+    transition: [20, range.max],
+    fresh: [5, 20],
+    grey: [-10, 5],
+    optimal: [-30, -10],
+    highRisk: [range.min, -30],
+  }
+  return FORM_ZONES.map((zone) => ({
+    from: edges[zone.key][0],
+    to: edges[zone.key][1],
+    color: colors[zone.key],
+  }))
+}
+
+/** The form axis: every zone edge shown, and room for the data. */
+export function formAxisRange(forms: readonly number[]): { min: number; max: number } {
+  const low = Math.min(-40, ...forms.map((form) => Math.floor(form) - 5))
+  const high = Math.max(25, ...forms.map((form) => Math.ceil(form) + 5))
+  return { min: low, max: high }
+}

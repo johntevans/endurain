@@ -34,6 +34,21 @@
     "error": {
       "title": "Couldn't load your fitness",
       "description": "Check your connection and try again."
+    },
+    "zones": {
+      "title": "Form zones",
+      "transition": "Transition",
+      "fresh": "Fresh",
+      "grey": "Grey Zone",
+      "optimal": "Optimal",
+      "highRisk": "High Risk",
+      "range": {
+        "transition": "above +20",
+        "fresh": "+5 to +20",
+        "grey": "-10 to +5",
+        "optimal": "-30 to -10",
+        "highRisk": "below -30"
+      }
     }
   }
 }
