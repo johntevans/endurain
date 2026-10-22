@@ -146,7 +146,7 @@ def _import_all_models() -> None:
 
 
 def _print_sample(computed: list[tuple[Activity, ActivityLoad]], count: int) -> None:
-    for activity, row in computed[-count:]:
+    for activity, row in computed[len(computed) - max(count, 0) :]:
         hr = f"{row.hr_load:.1f}" if row.hr_load is not None else "-"
         pace = f"{row.pace_load:.1f}" if row.pace_load is not None else "-"
         print(  # noqa: T201 - CLI output

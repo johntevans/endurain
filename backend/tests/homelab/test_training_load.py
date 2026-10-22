@@ -337,6 +337,14 @@ class TestCli:
         assert outcomes == {"none": 1}
         assert {row.activity_id: row.source for row in db.scalars(select(ActivityLoad))} == {1: "hr", 2: "none"}
 
+    @pytest.mark.parametrize(("count", "lines"), [(0, 0), (1, 1), (5, 2)])
+    def test_print_sample_prints_the_last_n(self, capsys, count, lines):
+        computed = [(_ride(i), ActivityLoad(activity_id=i, load=i, source="hr")) for i in (1, 2)]
+        cli._print_sample(computed, count)
+        printed = capsys.readouterr().out.splitlines()
+        assert len(printed) == lines
+        assert not printed or printed[-1].lstrip().startswith("2 ")
+
     def test_backfill_refuses_dates_before_the_start(self):
         assert cli.main(["backfill", "--since", "2025-12-31"]) == 2
 
