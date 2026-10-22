@@ -103,6 +103,9 @@ function detailMetrics(activity: TrainingLogActivity): string[] {
   if ((activity.elevationGain ?? 0) > 0) {
     parts.push(combineMetric(formatElevation(activity.elevationGain, props.units)))
   }
+  if (activity.load !== null) {
+    parts.push(t('trainingLoad.value', { value: activity.load }))
+  }
   return parts
 }
 </script>

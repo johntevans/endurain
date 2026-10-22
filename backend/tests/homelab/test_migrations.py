@@ -36,7 +36,7 @@ def test_config_points_at_the_fork_environment():
 
 def test_single_linear_chain_separate_from_upstream():
     fork = ScriptDirectory.from_config(db_migrations.build_config())
-    assert fork.get_heads() == ["hl0003"]
+    assert fork.get_heads() == ["hl0004"]
     assert fork.get_base() == "hl0001"
 
     upstream_config = Config()
@@ -64,6 +64,12 @@ def test_upgrade_creates_the_schema_first_and_keeps_its_version_table_there():
     assert f"CREATE TABLE {SCHEMA}.lap_intensity_overrides" in sql
     assert "REFERENCES activity_laps (id) ON DELETE CASCADE" in sql
     assert "UPDATE homelab.alembic_version SET version_num='hl0003'" in sql
+    # hl0004: training-load thresholds per user and the per-activity load cache.
+    assert f"CREATE TABLE {SCHEMA}.training_load_settings" in sql
+    assert "REFERENCES users (id) ON DELETE CASCADE" in sql
+    assert f"CREATE TABLE {SCHEMA}.activity_loads" in sql
+    assert "CHECK (source IN ('pace', 'hr', 'none'))" in sql
+    assert "UPDATE homelab.alembic_version SET version_num='hl0004'" in sql
     assert f"INSERT INTO {SCHEMA}.alembic_version" in sql
     # Never touches upstream's version table or tables.
     assert "public." not in sql
@@ -77,6 +83,8 @@ def test_fork_models_stay_out_of_upstream_metadata():
     assert not any(table.schema == SCHEMA for table in Base.metadata.tables.values())
     assert "homelab.activity_tags" in HomelabBase.metadata.tables
     assert "homelab.lap_intensity_overrides" in HomelabBase.metadata.tables
+    assert "homelab.training_load_settings" in HomelabBase.metadata.tables
+    assert "homelab.activity_loads" in HomelabBase.metadata.tables
 
 
 def test_run_homelab_migrations_upgrades_to_head():

@@ -23,6 +23,8 @@ import enActivityTags from './locales/en/activityTags.json'
 import enTrainingLog from './locales/en/trainingLog.json'
 // Homelab fork: lap intensity (features/lapIntensity).
 import enLapIntensity from './locales/en/lapIntensity.json'
+// Homelab fork: training load (features/trainingLoad).
+import enTrainingLoad from './locales/en/trainingLoad.json'
 
 /**
  * English message set, assembled from one file per feature namespace. The
@@ -49,6 +51,7 @@ const en = {
   activityTags: enActivityTags, // homelab fork
   trainingLog: enTrainingLog, // homelab fork
   lapIntensity: enLapIntensity, // homelab fork
+  trainingLoad: enTrainingLoad, // homelab fork
 }
 
 /**

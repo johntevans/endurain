@@ -23,6 +23,7 @@ export function mapTrainingLogActivity(dto: TrainingLogActivityDto): TrainingLog
     tags: sortActivityTags(dto.tags ?? []),
     qualityTime: dto.quality_time ?? 0,
     qualityDistance: dto.quality_distance ?? 0,
+    load: dto.load ?? null,
   }
 }
 

@@ -8,6 +8,7 @@ import type { MetricVisibility } from '@/features/activities/utils/metrics'
 
 import { MetricPill } from '@/components/ui/metric-pill'
 import { buildActivityMetrics } from '@/features/activities/utils/metrics'
+import ActivityLoadPill from '@/features/trainingLoad/components/ActivityLoadPill.vue' // homelab fork
 
 const props = defineProps<{
   activity: Activity
@@ -31,5 +32,6 @@ const tiles = computed(() => buildActivityMetrics(props.activity, props.units, p
       :accent="tile.accent"
       class=""
     />
+    <ActivityLoadPill :activity="activity" /><!-- homelab fork: owner's training load -->
   </div>
 </template>

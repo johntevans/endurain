@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   formatMetricValue,
   joinValue,
+  loadTotal,
   metricHasQuality,
   metricTotal,
   qualityPercent,
@@ -73,6 +74,9 @@ const quality = computed(() => {
 })
 
 const label = computed(() => weekRangeLabel(props.week, locale.value))
+
+// The week's training load (features/trainingLoad); null when no activity has one.
+const weekLoad = computed(() => loadTotal(weekActivities.value))
 </script>
 
 <template>
@@ -85,6 +89,12 @@ const label = computed(() => weekRangeLabel(props.week, locale.value))
       class="col-span-7 flex items-baseline justify-between gap-2 px-1 pt-2 sm:col-span-1 sm:flex-col sm:justify-start sm:gap-0 sm:pt-4"
     >
       <span class="text-[15px] font-medium text-foreground sm:text-[17px]">{{ label }}</span>
+      <span
+        v-if="weekLoad !== null && !loading"
+        class="text-micro text-muted-foreground"
+        data-testid="training-log-week-load"
+        >{{ t('trainingLoad.value', { value: weekLoad }) }}</span
+      >
       <span class="flex items-baseline gap-2 sm:mt-3 sm:flex-col sm:gap-0.5">
         <span class="text-micro text-muted-foreground">{{ t(`trainingLog.total.${metric}`) }}</span>
         <Skeleton v-if="loading" class="h-5 w-16 sm:h-6" />

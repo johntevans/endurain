@@ -35,6 +35,11 @@ class TrainingLogActivity(BaseModel):
         ge=0,
         description="Metres in quality laps of a race, workout or NSM session; 0 otherwise",
     )
+    load: int | None = Field(
+        default=None,
+        ge=0,
+        description="Intervals.icu-style training load; null without thresholds or before the loads' start date",
+    )
 
     model_config = ConfigDict(extra="forbid")
 

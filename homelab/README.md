@@ -14,9 +14,9 @@ here; a port, env var or vhost is fixed there.
 
 Everything the fork adds lives under `homelab/`, in `backend/app/homelab/` (fork backend code
 and its database migrations; the image only ships `backend/`), in
-`frontend/src/features/activityTags/`, `frontend/src/features/trainingLog/` and
-`frontend/src/features/lapIntensity/` and their `activityTags.json` / `trainingLog.json` /
-`lapIntensity.json` locale files, in
+`frontend/src/features/activityTags/`, `frontend/src/features/trainingLog/`,
+`frontend/src/features/lapIntensity/` and `frontend/src/features/trainingLoad/` and their
+`activityTags.json` / `trainingLog.json` / `lapIntensity.json` / `trainingLoad.json` locale files, in
 `frontend/vite.config.homelab.ts`, in `backend/app/.gitignore`, in
 `.github/workflows/homelab-image.yml` and in `CLAUDE.md`. Keep it that way where possible:
 **a new file never conflicts with an upstream merge; an edit to an upstream file can.** The
@@ -125,6 +125,8 @@ the schema (see `backend/tests/homelab/test_activity_tags.py`).
 |---|---|---|
 | `homelab.activity_tags` | Activity tags: `(activity_id → activities.id ON DELETE CASCADE, tag ∈ race/workout/long_run/nsm_short/nsm_medium/nsm_long, created_at)`, PK `(activity_id, tag)` | `hl0001`, CHECK widened by `hl0002` |
 | `homelab.lap_intensity_overrides` | The owner's lap intensity corrections: `(lap_id → activity_laps.id ON DELETE CASCADE, intensity ∈ FIT's active/interval/warmup/cooldown/recovery/rest/other, updated_at)`, PK `lap_id` | `hl0003` |
+| `homelab.training_load_settings` | The owner's Intervals.icu thresholds: `(user_id → users.id ON DELETE CASCADE, resting_hr, threshold_hr, max_hr, threshold_pace s/km, updated_at)`, PK `user_id` | `hl0004` |
+| `homelab.activity_loads` | Cache of each activity's training load: `(activity_id → activities.id ON DELETE CASCADE, load, source ∈ pace/hr/none, pace_load, hr_load, activity_type, computed_at)`, PK `activity_id` | `hl0004` |
 
 **Lap intensity and training-log quality.** A lap's effective intensity is its override, else
 the recorded `activity_laps.intensity`, else `active` (FIT's default, what a lap of an
@@ -139,6 +141,43 @@ The tag keys match Strava's run `workout_type` (1 race, 2 long run, 3 workout). 
 Strava-sourced comparison should store Strava's value in its own table (for example
 `homelab.activity_strava_workout_type`) rather than as rows here, so the user's own tags and
 Strava's stay separately comparable.
+
+### Training load (Intervals.icu-style)
+
+Phase 1 of reproducing Intervals.icu's fitness and fatigue: a load per activity, shown as a
+**Load** tile on the activity page (owner only) and as a weekly total and per-activity value in
+the training log. Code in `backend/app/homelab/training_load/` (`calculate.py` holds the rules)
+and `frontend/src/features/trainingLoad/`.
+
+- **Rules, matched to the owner's Intervals.icu account** (Run load priority "Pace, HR, Power",
+  threshold pace 7:00/mi, threshold HR 159, max 175, resting 43). Runs (types 1, 2, 3, 34, 40)
+  score **pace load** = timer hours × (GAP speed ÷ threshold speed)² × 100, with GAP from the
+  Strava-curve model in `activities/activity_laps/gap.py` over the moving samples. Timer time,
+  not moving time: Intervals counts standing with the timer running. Other sports score **HR
+  load** (HRSS: per-second Banister TRIMP ÷ one hour at threshold HR × 100). Workout, yoga,
+  strength and physical therapy show **Load 0** with the HR load beside it, as Intervals does.
+- **Checked on 2026-10-22** against Intervals' values for Sep 21 – Oct 17: 15 of 23 runs exact,
+  7 within ±1 (ours tends low; hilly runs differ most, probably Intervals' elevation
+  correction), one off by 2; 8 of 9 strength/prehab HR loads exact; weekly totals 407/426/402/463
+  against Intervals' 407/425/404/466.
+- **Not covered yet:** power load. Intervals would score virtual rides by power if a Ride FTP is
+  set; here they get HR load.
+- **Cache, not source data.** `homelab.activity_loads` is rebuilt from upstream's tables and
+  the settings. Readers (`crud.ensure_loads`, called by the training log and the activity
+  endpoint) compute rows that are missing, or stale because the settings or the activity's type
+  changed, at most 50 per request. So new imports need no hook in upstream's import code.
+- **Only activities from `crud.LOAD_START` (2026-01-01) get a load.** To go further back, move
+  it and run the backfill with `--since`.
+- **Settings and backfill**, in the backend container from `/app/backend` (a few seconds for
+  ~540 activities). The backfill only writes `homelab.activity_loads`; undo is deleting its rows:
+
+  ```sh
+  python -m homelab.training_load.cli settings --user-id 1 --resting-hr 43 --threshold-hr 159 --max-hr 175 --threshold-pace 7:00/mi
+  python -m homelab.training_load.cli backfill            # dry run: counts and the last 15
+  python -m homelab.training_load.cli backfill --apply
+  ```
+
+  Rerun the backfill after changing settings; readers would otherwise recompute 50 at a time.
 
 ### Fork-only activity types
 

@@ -2727,6 +2727,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/homelab/training_load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Activity Load
+         * @description Training load of one of the requester's activities (computed on first read).
+         */
+        get: operations["read_activity_load_api_v1_homelab_training_load_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/homelab/training_log": {
         parameters: {
             query?: never;
@@ -5858,6 +5878,37 @@ export interface components {
             total_timer_time?: number | null;
             /** Total Work */
             total_work?: number | null;
+        };
+        /**
+         * ActivityLoadRead
+         * @description One activity's training load, as Intervals.icu would show it.
+         *
+         *     Every value is ``None`` when the activity has no load: its owner has set
+         *     no thresholds, or it predates the loads' start date.
+         */
+        ActivityLoadRead: {
+            /**
+             * Activity Id
+             * @description Activity ID
+             */
+            activity_id: number;
+            /**
+             * Hr Load
+             * @description Heart-rate load (HRSS)
+             */
+            hr_load?: number | null;
+            /**
+             * Load
+             * @description Training load (pace, else HR; 0 for strength)
+             */
+            load?: number | null;
+            /**
+             * Pace Load
+             * @description Pace load (runs)
+             */
+            pace_load?: number | null;
+            /** @description Which load the training load is */
+            source?: components["schemas"]["LoadSource"] | null;
         };
         /**
          * ActivityMedia
@@ -9238,6 +9289,12 @@ export interface components {
             type_breakdown?: components["schemas"]["TypeBreakdownItem"][] | null;
         };
         /**
+         * LoadSource
+         * @description Which calculation an activity's Load came from.
+         * @enum {string}
+         */
+        LoadSource: "pace" | "hr" | "none";
+        /**
          * LogoutResponse
          * @description Response payload returned by the logout endpoint.
          *
@@ -10378,6 +10435,11 @@ export interface components {
              * @description Activity ID
              */
             id: number;
+            /**
+             * Load
+             * @description Intervals.icu-style training load; null without thresholds or before the loads' start date
+             */
+            load?: number | null;
             /**
              * Local Date
              * Format: date
@@ -15479,6 +15541,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LapIntensityRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_activity_load_api_v1_homelab_training_load_get: {
+        parameters: {
+            query: {
+                /** @description Activity ID */
+                activity_id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityLoadRead"];
                 };
             };
             /** @description Validation Error */

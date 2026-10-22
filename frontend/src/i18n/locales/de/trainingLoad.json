@@ -1,0 +1,9 @@
+{
+  "label": "Load",
+  "value": "Load {value}",
+  "hrLoad": "HR {value}",
+  "source": {
+    "pace": "pace",
+    "hr": "HR"
+  }
+}

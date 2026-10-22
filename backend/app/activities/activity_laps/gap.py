@@ -139,6 +139,45 @@ def _sample_grades(distance: np.ndarray, elevation: np.ndarray) -> np.ndarray:
     return np.clip(grade, -_MAX_GRADE_PCT, _MAX_GRADE_PCT)
 
 
+def gap_steps(
+    velocity_waypoints: Sequence[dict],
+    elevation_waypoints: Sequence[dict],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray] | None:
+    """
+    Split the velocity stream into per-sample distance steps and their grade factors.
+
+    Args:
+        velocity_waypoints: Velocity stream waypoints (``time``, ``vel`` m/s).
+        elevation_waypoints: Elevation stream waypoints (``time``, ``ele`` m).
+            Empty for a flat (or indoor) activity: every factor is then 1.
+
+    Returns:
+        ``(times, velocities, steps, factors)``, one entry per velocity sample:
+        the distance covered since the previous sample (trapezoidal, 0 across
+        a pause) and the grade cost factor at that sample. ``None`` when the
+        velocity stream has fewer than two samples.
+    """
+    vel_t, vel = _extract_series(velocity_waypoints, "vel")
+    if vel_t.size < 2:
+        return None
+
+    dt = np.diff(vel_t)
+    step = np.where(
+        (dt > 0) & (dt <= _MAX_SAMPLE_GAP_S),
+        (np.maximum(vel[1:], 0) + np.maximum(vel[:-1], 0)) / 2 * dt,
+        0.0,
+    )
+    step = np.concatenate(([0.0], step))
+
+    ele_t, ele = _extract_series(elevation_waypoints, "ele")
+    if ele_t.size < 2:
+        return vel_t, vel, step, np.ones_like(step)
+    distance = np.cumsum(step)
+    grades = _sample_grades(distance, np.interp(vel_t, ele_t, ele))
+    factors = 1.0 + _COEF_LINEAR * grades + _COEF_QUADRATIC * grades * grades
+    return vel_t, vel, step, factors
+
+
 def compute_laps_gap_ratio(
     laps: Sequence[tuple[datetime, float | None]],
     velocity_waypoints: Sequence[dict],
@@ -165,24 +204,11 @@ def compute_laps_gap_ratio(
     if not laps:
         return []
 
-    vel_t, vel = _extract_series(velocity_waypoints, "vel")
-    ele_t, ele = _extract_series(elevation_waypoints, "ele")
-    if vel_t.size < 2 or ele_t.size < 2:
+    # Without elevation every ratio would be 1, which says nothing: no GAP.
+    series = gap_steps(velocity_waypoints, elevation_waypoints)
+    if series is None or _extract_series(elevation_waypoints, "ele")[0].size < 2:
         return [None] * len(laps)
-
-    # Distance covered since the previous sample (trapezoidal), skipping pauses.
-    dt = np.diff(vel_t)
-    step = np.where(
-        (dt > 0) & (dt <= _MAX_SAMPLE_GAP_S),
-        (np.maximum(vel[1:], 0) + np.maximum(vel[:-1], 0)) / 2 * dt,
-        0.0,
-    )
-    step = np.concatenate(([0.0], step))
-    distance = np.cumsum(step)
-
-    elevation = np.interp(vel_t, ele_t, ele)
-    grades = _sample_grades(distance, elevation)
-    factors = 1.0 + _COEF_LINEAR * grades + _COEF_QUADRATIC * grades * grades
+    vel_t, _vel, step, factors = series
     adjusted = step * factors
 
     offsets = vel_t - vel_t[0]

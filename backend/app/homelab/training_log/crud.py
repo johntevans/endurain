@@ -21,6 +21,7 @@ from homelab.activity_tags import schema as tags_schema
 from homelab.activity_tags.models import ActivityTag
 from homelab.lap_intensity import crud as intensity_crud
 from homelab.lap_intensity import schema as intensity_schema
+from homelab.training_load import crud as load_crud
 from homelab.training_log import schema as training_log_schema
 
 # UTC offsets run from -12:00 to +14:00, so a local date D starts no earlier
@@ -135,6 +136,7 @@ def get_training_log_activities(
 
         quality_ids = {row.id for row in rows if tags.get(row.id, set()) & intensity_schema.QUALITY_TAGS}
         quality = intensity_crud.get_quality_totals(quality_ids, db)
+        loads = load_crud.ensure_loads(user_id, (row.id for row in rows), db)
 
         result: list[training_log_schema.TrainingLogActivity] = []
         for row in rows:
@@ -156,6 +158,7 @@ def get_training_log_activities(
                     tags=tags_schema.sort_tags(tags.get(row.id, set())),
                     quality_time=quality_time,
                     quality_distance=quality_distance,
+                    load=loads[row.id].load if row.id in loads else None,
                 )
             )
         return result

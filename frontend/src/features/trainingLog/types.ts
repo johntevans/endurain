@@ -37,6 +37,11 @@ export interface TrainingLogActivity {
   qualityTime: number
   /** Metres in those laps; 0 for any other activity. */
   qualityDistance: number
+  /**
+   * Intervals.icu-style training load (`features/trainingLoad`), or `null`
+   * when the activity has none (no thresholds set, or before the loads' start).
+   */
+  load: number | null
 }
 
 /** Local dates of the first and last activity (`null` when there are none). */

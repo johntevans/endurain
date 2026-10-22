@@ -29,6 +29,7 @@ import {
   formatLogDuration,
   formatMetricValue,
   groupByDate,
+  loadTotal,
   localTodayIso,
   matchesSport,
   matchesTag,
@@ -100,6 +101,7 @@ function makeLogActivity(overrides: Partial<TrainingLogActivity> = {}): Training
     tags: [],
     qualityTime: 0,
     qualityDistance: 0,
+    load: null,
     ...overrides,
   }
 }
@@ -343,6 +345,7 @@ describe('training log service', () => {
         tags: ['long_run', 'race'],
         quality_time: 5_400,
         quality_distance: 21_097,
+        load: 153,
       },
     ])
 
@@ -365,6 +368,7 @@ describe('training log service', () => {
         tags: ['race', 'long_run'],
         qualityTime: 5_400,
         qualityDistance: 21_097,
+        load: 153,
       },
     ])
   })
@@ -423,10 +427,28 @@ describe('TrainingLogDay', () => {
   })
 })
 
+describe('loadTotal (training load)', () => {
+  it('sums the loads that exist and is null when there are none', () => {
+    expect(
+      loadTotal([
+        makeLogActivity({ load: 74 }),
+        makeLogActivity({ load: null }),
+        makeLogActivity({ load: 0 }),
+        makeLogActivity({ load: 81 }),
+      ]),
+    ).toBe(155)
+    expect(loadTotal([makeLogActivity()])).toBeNull()
+    expect(loadTotal([])).toBeNull()
+  })
+})
+
 describe('TrainingLogWeek', () => {
-  function mountWeek(metric: 'time' | 'distance' | 'elevation' = 'time') {
+  function mountWeek(
+    metric: 'time' | 'distance' | 'elevation' = 'time',
+    load: number | null = null,
+  ) {
     const byDate = groupByDate([
-      makeLogActivity({ id: 1, localDate: '2026-10-12', movingTime: 4_800 }),
+      makeLogActivity({ id: 1, localDate: '2026-10-12', movingTime: 4_800, load }),
       makeLogActivity({
         id: 2,
         localDate: '2026-10-14',
@@ -460,6 +482,13 @@ describe('TrainingLogWeek', () => {
     // Tue 13 is the only past empty day; Thu 15 is today (no Rest), Fri-Sun are future.
     expect(wrapper.findAll('[data-testid="training-log-rest"]')).toHaveLength(1)
     expect(wrapper.findAll('[data-testid="training-log-today"]')).toHaveLength(1)
+  })
+
+  it("shows the week's training load only when an activity has one", () => {
+    expect(mountWeek('time', 74).get('[data-testid="training-log-week-load"]').text()).toBe(
+      'Load 74',
+    )
+    expect(mountWeek().find('[data-testid="training-log-week-load"]').exists()).toBe(false)
   })
 
   it('shows the quality total and its share of the week', async () => {

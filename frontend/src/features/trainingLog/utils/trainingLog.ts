@@ -330,6 +330,20 @@ export function metricTotal(
   return activities.reduce((sum, activity) => sum + metricValue(activity, metric), 0)
 }
 
+/**
+ * Sum of the training loads of activities, or `null` when none of them has a
+ * load (so a week without loads shows nothing rather than 0).
+ */
+export function loadTotal(activities: readonly TrainingLogActivity[]): number | null {
+  let total: number | null = null
+  for (const activity of activities) {
+    if (activity.load !== null) {
+      total = (total ?? 0) + activity.load
+    }
+  }
+  return total
+}
+
 /** Whether a metric has a quality share (elevation has none). */
 export function metricHasQuality(metric: TrainingLogMetric): metric is 'time' | 'distance' {
   return metric !== 'elevation'
