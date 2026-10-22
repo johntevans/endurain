@@ -213,6 +213,10 @@ rebuilds the series from `homelab.activity_loads` on each request
   every zone also has its name, so nothing depends on colour alone. The provider options
   behind this, all marked `homelab fork`: `yBands`, `yTicks`, a series' `segmentColor` and
   `fill: false`. The provider's `update()` now also refreshes the y-axis and bands.
+- **Colours follow Intervals:** fitness is sky blue (a filled area), fatigue a purple line,
+  and today's Form number is drawn in its zone's colour. Blue and purple only stay apart for
+  red-green colour-blind readers when their lightness differs, so `FITNESS_FATIGUE_COLORS`
+  is per theme and validated like the zone colours.
 
 ### Fork-only activity types
 

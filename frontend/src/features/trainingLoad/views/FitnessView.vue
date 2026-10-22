@@ -9,11 +9,11 @@ import type { FitnessRangeKey } from '@/features/trainingLoad/types'
 import type { FormZoneKey } from '@/features/trainingLoad/utils/fitness'
 
 import FitnessChartCard from '@/features/trainingLoad/components/FitnessChartCard.vue'
+import FitnessStatTile from '@/features/trainingLoad/components/FitnessStatTile.vue'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ErrorState } from '@/components/ui/error-state'
 import { Label } from '@/components/ui/label'
-import { MetricPill } from '@/components/ui/metric-pill'
 import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { themeColor } from '@/lib/themeColor'
@@ -23,6 +23,7 @@ import { useCurrentUser } from '@/features/auth/composables/useCurrentUser'
 import { useFitnessQuery } from '@/features/trainingLoad/composables/useTrainingLoad'
 import {
   DEFAULT_FITNESS_RANGE,
+  FITNESS_FATIGUE_COLORS,
   FITNESS_RANGES,
   FORM_ZONE_COLORS,
   FORM_ZONE_TICKS,
@@ -61,8 +62,10 @@ const days = computed(() => data.value?.days ?? [])
 const current = computed(() => days.value[days.value.length - 1] ?? null)
 
 // Validated together (scripts/validate_palette.js, light and dark card surfaces).
-const FITNESS_COLOR = themeColor('--color-info')
-const FATIGUE_COLOR = themeColor('--color-hr')
+// Intervals' sky-blue fitness and purple fatigue, per theme (FITNESS_FATIGUE_COLORS).
+const { theme } = useTheme()
+const fitnessColor = computed(() => FITNESS_FATIGUE_COLORS[theme.value].fitness)
+const fatigueColor = computed(() => FITNESS_FATIGUE_COLORS[theme.value].fatigue)
 const LOAD_COLOR = themeColor('--color-brand-mid')
 
 const dateLabels = computed(() => {
@@ -84,12 +87,12 @@ const fitnessChart = computed<ChartRenderOptions>(() => ({
     {
       label: t('trainingLoad.fitness.fitness'),
       data: days.value.map((day) => day.fitness),
-      color: FITNESS_COLOR,
+      color: fitnessColor.value,
     },
     {
       label: t('trainingLoad.fitness.fatigue'),
       data: days.value.map((day) => day.fatigue),
-      color: FATIGUE_COLOR,
+      color: fatigueColor.value,
       // A line over fitness's filled area, as on Intervals' chart.
       fill: false,
     },
@@ -98,7 +101,6 @@ const fitnessChart = computed<ChartRenderOptions>(() => ({
 
 // Intervals' form zones: the line takes each zone's colour over tinted bands,
 // with the zone edges as the axis ticks. Colours follow the theme.
-const { theme } = useTheme()
 const zoneColors = computed(() => FORM_ZONE_COLORS[theme.value])
 const zoneOf = (form: number): { key: FormZoneKey; color: string } => {
   const key = formZone(form)
@@ -210,18 +212,22 @@ const warmup = computed(() => {
 
     <template v-else>
       <Card class="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="fitness-today">
-        <MetricPill
+        <FitnessStatTile
           :label="t('trainingLoad.fitness.fitness')"
           :value="formatWhole(current.fitness)"
-          accent="info"
+          :color="fitnessColor"
         />
-        <MetricPill
+        <FitnessStatTile
           :label="t('trainingLoad.fitness.fatigue')"
           :value="formatWhole(current.fatigue)"
-          accent="hr"
+          :color="fatigueColor"
         />
-        <div class="flex flex-col gap-1">
-          <MetricPill :label="t('trainingLoad.fitness.form')" :value="formatSigned(current.form)" />
+        <FitnessStatTile
+          :label="t('trainingLoad.fitness.form')"
+          :value="formatSigned(current.form)"
+          :color="currentZone?.color"
+          data-testid="fitness-form"
+        >
           <span
             v-if="currentZone"
             class="flex items-center gap-1.5 text-hint"
@@ -234,8 +240,8 @@ const warmup = computed(() => {
             />
             {{ t(`trainingLoad.fitness.zones.${currentZone.key}`) }}
           </span>
-        </div>
-        <MetricPill
+        </FitnessStatTile>
+        <FitnessStatTile
           :label="t('trainingLoad.fitness.ramp')"
           :value="formatSignedDecimal(current.ramp)"
         />
@@ -247,7 +253,7 @@ const warmup = computed(() => {
       <div class="flex flex-col gap-3">
         <FitnessChartCard
           :title="t('trainingLoad.fitness.fitnessChart')"
-          :accent-color="FITNESS_COLOR"
+          :accent-color="fitnessColor"
           :render="fitnessChart"
         />
         <FitnessChartCard

@@ -226,6 +226,19 @@ describe('FitnessView (homelab fork)', () => {
     expect(wrapper.find('[data-testid="fitness-warmup"]').exists()).toBe(false)
   })
 
+  it("colours today's form by its zone, like Intervals (+22 is Transition yellow)", async () => {
+    const wrapper = await mountView({
+      loads_start: '2026-01-01',
+      has_settings: true,
+      days: [{ date: '2026-10-22', load: 0, fitness: 60, fatigue: 38, form: 22, ramp: -3 }],
+    })
+    const form = wrapper.get('[data-testid="fitness-form"]')
+    expect(form.text()).toContain('+22')
+    expect(form.text()).toContain('Transition')
+    // #d9930f, the light theme's Transition colour.
+    expect(form.findAll('p')[1]?.attributes('style')).toContain('rgb(217, 147, 15)')
+  })
+
   it('explains what to do without thresholds', async () => {
     const wrapper = await mountView({ loads_start: '2026-01-01', has_settings: false, days: [] })
     expect(wrapper.text()).toContain('No training load yet')

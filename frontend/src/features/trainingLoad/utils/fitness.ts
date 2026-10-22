@@ -92,6 +92,20 @@ export function formatSignedDecimal(value: number): string {
   return value >= 0.05 ? `+${fixed}` : fixed
 }
 
+/**
+ * Intervals' sky-blue fitness and purple fatigue, per theme. Blue and purple
+ * look alike to red-green colour-blind readers unless their lightness differs,
+ * so these are checked with the dataviz palette validator against the card
+ * surface (colour-blind separation 27.3 light, 10.0 dark; normal vision >= 16).
+ */
+export const FITNESS_FATIGUE_COLORS: Record<
+  'light' | 'dark',
+  { fitness: string; fatigue: string }
+> = {
+  light: { fitness: '#5ab8ec', fatigue: '#6a3fb5' },
+  dark: { fitness: '#3897d8', fatigue: '#7f5bdb' },
+}
+
 /** Intervals.icu's form zones, top to bottom. */
 export type FormZoneKey = 'transition' | 'fresh' | 'grey' | 'optimal' | 'highRisk'
 
