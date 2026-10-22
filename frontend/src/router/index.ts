@@ -87,6 +87,13 @@ const router = createRouter({
       meta: { requiresAuth: true, cardless: true },
     },
     {
+      // Homelab fork: Intervals.icu-style fitness and fatigue (features/trainingLoad).
+      path: '/fitness',
+      name: 'fitness',
+      component: () => import('@/features/trainingLoad/views/FitnessView.vue'),
+      meta: { requiresAuth: true, cardless: true },
+    },
+    {
       path: '/gears',
       name: 'gears',
       component: () => import('@/features/gears/views/GearsView.vue'),

@@ -127,6 +127,8 @@ export function buildChartConfiguration(
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
+      // homelab fork: optional hover by x position.
+      ...(options.hoverIndex ? { interaction: { mode: 'index' as const, intersect: false } } : {}),
       plugins: {
         // homelab fork: series with `legend: false` don't count or show.
         legend: {

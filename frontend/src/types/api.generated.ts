@@ -2747,6 +2747,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/homelab/training_load/fitness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Fitness
+         * @description The requester's daily fitness, fatigue and form between two local dates.
+         */
+        get: operations["read_fitness_api_v1_homelab_training_load_fitness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/homelab/training_log": {
         parameters: {
             query?: never;
@@ -6334,6 +6354,65 @@ export interface components {
          * @enum {string}
          */
         FastingType: "16:8" | "18:6" | "20:4" | "OMAD" | "24h" | "36h" | "48h" | "72h" | "custom";
+        /**
+         * FitnessDayRead
+         * @description Fitness, fatigue and form at the end of one local day, to one decimal.
+         */
+        FitnessDayRead: {
+            /**
+             * Date
+             * Format: date
+             * @description Local date
+             */
+            date: string;
+            /**
+             * Fatigue
+             * @description 7-day exponentially weighted load (Intervals' Fatigue)
+             */
+            fatigue: number;
+            /**
+             * Fitness
+             * @description 42-day exponentially weighted load (Intervals' Fitness)
+             */
+            fitness: number;
+            /**
+             * Form
+             * @description Fitness minus fatigue
+             */
+            form: number;
+            /**
+             * Load
+             * @description Sum of the day's activity loads
+             */
+            load: number;
+            /**
+             * Ramp
+             * @description Change in fitness over the last 7 days
+             */
+            ramp: number;
+        };
+        /**
+         * FitnessRead
+         * @description A user's daily fitness, fatigue and form over a range of local dates.
+         */
+        FitnessRead: {
+            /**
+             * Days
+             * @description One entry per day, oldest first
+             */
+            days?: components["schemas"]["FitnessDayRead"][];
+            /**
+             * Has Settings
+             * @description Whether the user has set thresholds (no days otherwise)
+             */
+            has_settings: boolean;
+            /**
+             * Loads Start
+             * Format: date
+             * @description First date with loads; the averages start from zero there
+             */
+            loads_start: string;
+        };
         /**
          * Follower
          * @description Serialized representation of a follower relationship.
@@ -15573,6 +15652,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivityLoadRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_fitness_api_v1_homelab_training_load_fitness_get: {
+        parameters: {
+            query: {
+                /** @description Inclusive first local date */
+                start_date: string;
+                /** @description Inclusive last local date */
+                end_date: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FitnessRead"];
                 };
             };
             /** @description Validation Error */

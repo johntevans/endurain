@@ -6,6 +6,7 @@ import {
   Activity,
   Calendar,
   CalendarRange, // homelab fork: training log
+  TrendingUp, // homelab fork: fitness
   LogOut,
   Search,
   Settings,
@@ -94,6 +95,15 @@ async function signOut(): Promise<void> {
         >
           <CalendarRange class="size-4" />
           <span>{{ t('trainingLog.nav') }}</span>
+        </RouterLink>
+        <!-- homelab fork: fitness -->
+        <hr class="border-border" />
+        <RouterLink
+          :to="{ name: 'fitness' }"
+          class="flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent hover:text-accent-foreground"
+        >
+          <TrendingUp class="size-4" />
+          <span>{{ t('trainingLoad.fitness.nav') }}</span>
         </RouterLink>
       </Card>
 

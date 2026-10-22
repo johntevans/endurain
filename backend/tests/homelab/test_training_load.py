@@ -22,11 +22,11 @@ from sqlalchemy.orm import Session
 import activities.activity.models as activities_models
 import activities.activity_streams.models as streams_models
 from homelab.database import HomelabBase
-from homelab.training_load import calculate, cli
+from homelab.training_load import calculate, cli, fitness, fitness_crud
 from homelab.training_load import crud as load_crud
 from homelab.training_load.calculate import LoadSource, Thresholds
 from homelab.training_load.models import ActivityLoad, TrainingLoadSettings
-from homelab.training_load.schema import ActivityLoadRead
+from homelab.training_load.schema import ActivityLoadRead, FitnessRead
 from homelab.training_log import crud as training_log_crud
 from tests._helpers.db import create_sqlite_session
 from tests.homelab.test_training_log import OTHER, OWNER, _activity
@@ -391,3 +391,105 @@ def test_decimal_timer_time_is_accepted(db):
     db.add_all([_settings(), _activity(1, START, total_timer_time=Decimal("1823.5")), _hr_streams(1, seconds=60)])
     db.commit()
     assert load_crud.ensure_loads(OWNER, [1], db)[1].source is LoadSource.PACE
+
+
+class TestFitnessSeries:
+    def _days(self, loads: dict[date, float], start: date, last: date):
+        inputs = {day: fitness.DayInput(load=v, fitness=v, fatigue=v) for day, v in loads.items()}
+        return fitness.fitness_series(inputs, start, start, last)
+
+    def test_one_day_of_load_then_decay(self):
+        start = date(2026, 1, 1)
+        days = self._days({start: 100}, start, start + timedelta(days=7))
+        first = days[0]
+        assert first.fitness == pytest.approx(100 * (1 - math.exp(-1 / 42)))
+        assert first.fatigue == pytest.approx(100 * (1 - math.exp(-1 / 7)))
+        assert first.form == pytest.approx(first.fitness - first.fatigue)
+        assert days[7].fatigue == pytest.approx(first.fatigue * math.exp(-7 / 7))
+        assert days[6].ramp == pytest.approx(days[6].fitness)  # nothing a week before the start
+        assert days[7].ramp == pytest.approx(days[7].fitness - first.fitness)
+
+    def test_steady_load_converges_to_it(self):
+        start = date(2026, 1, 1)
+        days = self._days({start + timedelta(days=i): 60 for i in range(400)}, start, start + timedelta(days=399))
+        assert days[-1].fitness == pytest.approx(60, abs=0.01)
+        assert days[-1].fatigue == pytest.approx(60, abs=0.01)
+        assert days[-1].ramp == pytest.approx(0, abs=0.01)
+
+    def test_returns_only_the_asked_days(self):
+        start = date(2026, 1, 1)
+        inputs = {start: fitness.DayInput(load=100, fitness=100, fatigue=100)}
+        days = fitness.fitness_series(inputs, start, date(2026, 1, 3), date(2026, 1, 4))
+        assert [d.day for d in days] == [date(2026, 1, 3), date(2026, 1, 4)]
+        assert days[0].fitness == pytest.approx(100 * (1 - math.exp(-1 / 42)) * math.exp(-2 / 42))
+
+    def test_strength_counts_its_hr_load_toward_fatigue_only(self):
+        day = date(2026, 10, 13)
+        inputs = fitness.daily_inputs(
+            [
+                fitness.ActivityInput(day, 1, 80, 55.0),  # run: its Load, both
+                fitness.ActivityInput(day, 19, 0, 11.0),  # strength: HR load, fatigue only
+                fitness.ActivityInput(day, 14, 0, 9.0),  # yoga: nothing
+                fitness.ActivityInput(day, 1001, 0, None),  # no HR: nothing
+            ]
+        )
+        assert inputs[day] == fitness.DayInput(load=80, fitness=80, fatigue=91)
+
+
+class TestGetFitness:
+    def test_without_settings(self, db):
+        result = fitness_crud.get_fitness(OWNER, date(2026, 10, 1), date(2026, 10, 7), db)
+        assert result == FitnessRead(loads_start=load_crud.LOAD_START.date(), has_settings=False, days=[])
+
+    def test_series_from_the_owners_visible_activities_by_local_date(self, db):
+        # 2026-10-13 03:00 UTC is still Oct 12 in Los Angeles.
+        db.add_all(
+            [
+                _settings(),
+                _ride(1, datetime(2026, 10, 13, 3, tzinfo=UTC), timezone="America/Los_Angeles"),
+                _hr_streams(1),
+                _ride(2, datetime(2026, 10, 12, 12, tzinfo=UTC), is_hidden=True),
+                _hr_streams(2),
+                _ride(3, datetime(2026, 10, 12, 12, tzinfo=UTC), user_id=OTHER),
+                _hr_streams(3),
+            ]
+        )
+        db.commit()
+
+        result = fitness_crud.get_fitness(OWNER, date(2026, 10, 11), date(2026, 10, 13), db)
+
+        assert [(str(d.date), d.load) for d in result.days] == [
+            ("2026-10-11", 0),
+            ("2026-10-12", 100),
+            ("2026-10-13", 0),
+        ]
+        assert result.days[0].fitness == 0
+        assert result.days[1].fitness == round(100 * (1 - math.exp(-1 / 42)), 1)
+        assert result.days[1].fatigue == round(100 * (1 - math.exp(-1 / 7)), 1)
+
+    def test_starts_at_the_loads_start(self, db):
+        db.add(_settings())
+        db.commit()
+        result = fitness_crud.get_fitness(OWNER, date(2025, 12, 30), date(2026, 1, 2), db)
+        assert [str(d.date) for d in result.days] == ["2026-01-01", "2026-01-02"]
+
+
+class TestFitnessRoute:
+    @patch("homelab.training_load.fitness_crud.get_fitness")
+    def test_passes_dates_and_token_user(self, mock_get):
+        mock_db = MagicMock(spec=Session)
+        mock_get.return_value = FitnessRead(loads_start=date(2026, 1, 1), has_settings=True, days=[])
+        resp = TestClient(_build_app(mock_db, user_id=7)).get(
+            "/homelab/training_load/fitness?start_date=2026-07-01&end_date=2026-10-22"
+        )
+        assert resp.status_code == 200
+        assert resp.json() == {"loads_start": "2026-01-01", "has_settings": True, "days": []}
+        mock_get.assert_called_once_with(7, date(2026, 7, 1), date(2026, 10, 22), mock_db)
+
+    @pytest.mark.parametrize(
+        "query",
+        ["", "?start_date=2026-10-22&end_date=2026-10-01", "?start_date=2025-01-01&end_date=2026-10-22"],
+    )
+    def test_rejects_bad_ranges(self, query):
+        app = _build_app(MagicMock(spec=Session))
+        assert TestClient(app).get(f"/homelab/training_load/fitness{query}").status_code == 422

@@ -20,3 +20,49 @@ export interface ActivityLoad {
   paceLoad: number | null
   hrLoad: number | null
 }
+
+/** One day of fitness, fatigue and form, as the endpoint returns it. */
+export type FitnessDayDto = Schemas['FitnessDayRead']
+
+/** A fitness series, as the endpoint returns it. */
+export type FitnessDto = Schemas['FitnessRead']
+
+/** Fitness, fatigue and form at the end of one local day (one decimal). */
+export interface FitnessDay {
+  /** Local date, `YYYY-MM-DD`. */
+  date: string
+  /** Sum of the day's activity loads. */
+  load: number
+  /** 42-day exponentially weighted load (Intervals' Fitness, CTL). */
+  fitness: number
+  /** 7-day exponentially weighted load (Intervals' Fatigue, ATL). */
+  fatigue: number
+  /** Fitness minus fatigue. */
+  form: number
+  /** Change in fitness over the last 7 days. */
+  ramp: number
+}
+
+/** A fitness series. */
+export interface Fitness {
+  /** First date with loads (`YYYY-MM-DD`): the averages start from zero there. */
+  loadsStart: string
+  /** Whether the user has set thresholds; without them there are no days. */
+  hasSettings: boolean
+  /** One entry per day, oldest first. */
+  days: FitnessDay[]
+}
+
+/** The time ranges the fitness page offers. */
+export type FitnessRangeKey = '6w' | '3m' | '6m' | '1y'
+
+/** One week of the fitness table: its load, and the values on its last day shown. */
+export interface FitnessWeekRow {
+  /** First day of the week, `YYYY-MM-DD`. */
+  start: string
+  load: number
+  fitness: number
+  fatigue: number
+  form: number
+  ramp: number
+}

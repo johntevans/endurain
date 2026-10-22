@@ -179,6 +179,27 @@ and `frontend/src/features/trainingLoad/`.
 
   Rerun the backfill after changing settings; readers would otherwise recompute 50 at a time.
 
+**Fitness, fatigue and form** (phase 2) are on the **Fitness** page (`/fitness`, under
+Activities): today's Fitness, Fatigue, Form and Ramp, charts over 6 weeks to a year, and a
+weekly table laid out like Intervals' week summaries. Nothing is stored: `fitness_crud.py`
+rebuilds the series from `homelab.activity_loads` on each request
+(`GET /api/v1/homelab/training_load/fitness?start_date&end_date`), starting from zero at
+`LOAD_START`, which is why the page warns that values read low until about 84 days later.
+
+- **Rules** (`fitness.py`): fitness and fatigue are exponentially weighted daily loads over 42
+  and 7 days (`today = yesterday · e^(-1/days) + load · (1 − e^(-1/days))`, the day's own load
+  included). Form is fitness minus fatigue on the same day, and Ramp is the change in fitness
+  over 7 days. Workout, strength and physical therapy add their **HR load to fatigue only**,
+  and yoga adds nothing. That is the owner's Intervals table "Weight Training 0% fitness, 100%
+  fatigue", and without it fatigue fits much worse.
+- **Checked on 2026-10-22** against Intervals' week values (Sep 27 to Nov 1): fitness rounds to
+  Intervals' number every week (49, 51, 52, 54, today's 49, Nov 1's projected 39), and fatigue
+  in 5 of 6 (Oct 18: 63.4 vs 64), consistent with the run loads' slight low bias. A past
+  week's values are its last day's; the current week's are today's, which is how Intervals
+  shows them.
+- The chart provider gained a `hoverIndex` option (marked `homelab fork`), which shows every
+  series at the hovered date.
+
 ### Fork-only activity types
 
 `activities.activity_type` is a plain integer that upstream numbers sequentially (1–47 as of

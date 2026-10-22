@@ -5,5 +5,35 @@
   "source": {
     "pace": "pace",
     "hr": "HR"
+  },
+  "fitness": {
+    "nav": "Fitness",
+    "title": "Fitness",
+    "subtitle": "Fitness, fatigue and form from your training load, as Intervals.icu computes them.",
+    "range": "Time range",
+    "ranges": {
+      "6w": "Last 6 weeks",
+      "3m": "Last 3 months",
+      "6m": "Last 6 months",
+      "1y": "Last year"
+    },
+    "fitness": "Fitness",
+    "fatigue": "Fatigue",
+    "form": "Form",
+    "ramp": "Ramp",
+    "fitnessChart": "Fitness & fatigue",
+    "dailyLoad": "Daily load",
+    "weeks": "By week",
+    "week": "Week",
+    "weeksHint": "Load is the week's total; the other values are on the week's last day (today for this week).",
+    "warmup": "Loads start on {start}, where fitness starts from zero, so it reads low until about {end}.",
+    "empty": {
+      "title": "No training load yet",
+      "description": "Set your training-load thresholds to see fitness and fatigue."
+    },
+    "error": {
+      "title": "Couldn't load your fitness",
+      "description": "Check your connection and try again."
+    }
   }
 }

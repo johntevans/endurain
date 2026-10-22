@@ -5,6 +5,7 @@ import {
   Bike,
   Calendar,
   CalendarRange, // homelab fork: training log
+  TrendingUp, // homelab fork: fitness
   Heart,
   List,
   Search,
@@ -51,6 +52,7 @@ export function useNavigation() {
               { name: 'activities', label: t('nav.activitiesList'), icon: List },
               { name: 'summary', label: t('nav.summary'), icon: Calendar },
               { name: 'training-log', label: t('trainingLog.nav'), icon: CalendarRange }, // homelab fork
+              { name: 'fitness', label: t('trainingLoad.fitness.nav'), icon: TrendingUp }, // homelab fork
             ],
           },
           { name: 'gears', label: t('nav.gear'), icon: Bike },

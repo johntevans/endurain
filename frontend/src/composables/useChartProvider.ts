@@ -65,6 +65,11 @@ export interface ChartRenderOptions {
   /** homelab fork: caps the x-axis labels and keeps them horizontal. */
   xMaxTicks?: number
   /**
+   * homelab fork: hovering anywhere over an x position shows every series'
+   * value there, instead of only when the pointer is on a line.
+   */
+  hoverIndex?: boolean
+  /**
    * Enables interactive pan/zoom along the x-axis (wheel + drag on desktop,
    * pinch on touch). Providers without zoom support ignore this.
    */
