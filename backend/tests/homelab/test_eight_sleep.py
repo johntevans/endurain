@@ -18,9 +18,9 @@ import health.health_sleep.models as health_sleep_models
 from homelab.database import HomelabBase
 from homelab.eight_sleep import client as eight_sleep_client
 from homelab.eight_sleep import mapping as eight_sleep_mapping
-from homelab.eight_sleep import router as hrv_router
+from homelab.eight_sleep import router as metric_router
 from homelab.eight_sleep import sync as eight_sleep_sync
-from homelab.eight_sleep.models import SleepHrv
+from homelab.eight_sleep.models import SleepHeartRate, SleepHrv
 from tests._helpers.db import create_sqlite_session
 
 USER = 1
@@ -72,7 +72,14 @@ def _day(day: str, sessions: list[dict], main: str | None = None, **overrides) -
                 "upperRange": 80.2,
                 "upperBound": 9999,
             },
-            "heartRate": {"current": 43, "lowerBound": -9999},
+            "heartRate": {
+                "current": 43,
+                "inclusive7DayAverage": 43.6,
+                "average": 44.1,
+                "lowerRange": 42.3,
+                "upperRange": 45.9,
+                "lowerBound": -9999,
+            },
         },
     }
     record.update(overrides)
@@ -107,10 +114,12 @@ class TestMapDay:
         result = eight_sleep_mapping.map_day(_night("2026-10-08"), TZ)
 
         # 71.5 is what the app shows as "72"; the timeseries mean was 74.
-        assert result.hrv.hrv_ms == 71.5
-        assert (result.hrv.avg_7d_ms, result.hrv.baseline_ms) == (72.7, 72.9)
-        assert (result.hrv.range_low_ms, result.hrv.range_high_ms) == (65.6, 80.2)
+        assert result.hrv.value == 71.5
+        assert (result.hrv.avg_7d, result.hrv.baseline) == (72.7, 72.9)
+        assert (result.hrv.range_low, result.hrv.range_high) == (65.6, 80.2)
         assert result.sleep.resting_heart_rate == 43
+        assert (result.heart_rate.value, result.heart_rate.avg_7d) == (43, 43.6)
+        assert (result.heart_rate.range_low, result.heart_rate.range_high) == (42.3, 45.9)
 
     def test_missing_or_sentinel_quality_values_are_none(self):
         day = _night("2026-10-08")
@@ -118,6 +127,7 @@ class TestMapDay:
 
         result = eight_sleep_mapping.map_day(day, TZ)
         assert result.hrv is None
+        assert result.heart_rate is None
         assert result.sleep.resting_heart_rate is None
 
     def test_local_times_are_wall_clock_labelled_utc_like_garmin(self):
@@ -299,6 +309,12 @@ class TestReconcile:
         rows = {r.date: r.hrv_ms for r in db.execute(select(SleepHrv)).scalars()}
         assert rows == {date(2026, 10, 9): 80.0}
         assert counts["hrv deleted"] == 1
+        hr = {
+            r.date: (r.hr_bpm, r.avg_7d_bpm, r.range_low_bpm, r.range_high_bpm)
+            for r in db.execute(select(SleepHeartRate)).scalars()
+        }
+        assert hr == {date(2026, 10, 9): (43, 43.6, 42.3, 45.9)}
+        assert counts["heart rate deleted"] == 1
 
     def test_hrv_is_kept_beside_a_manual_sleep_entry(self, db):
         _row(db, date(2026, 10, 8), None)
@@ -311,6 +327,7 @@ class TestReconcile:
         self._reconcile(db, [daytime])
 
         assert db.execute(select(SleepHrv)).scalars().all() == []
+        assert db.execute(select(SleepHeartRate)).scalars().all() == []
 
     def test_processing_night_keeps_its_hrv(self, db):
         self._reconcile(db, [_night("2026-10-22")])
@@ -376,9 +393,25 @@ class TestClient:
             eight_sleep_client.fetch_days(date(2026, 1, 1), date(2026, 1, 2), TZ)
 
 
-class TestHrvRoutes:
+class TestMetricRoutes:
+    def _client(self, db):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        import auth.dependencies as auth_deps
+        import core.database as core_db
+
+        app = FastAPI()
+        app.include_router(metric_router.hrv_router, prefix="/hrv")
+        app.include_router(metric_router.heart_rate_router, prefix="/hr")
+        app.dependency_overrides[auth_deps.check_scopes] = lambda: None
+        app.dependency_overrides[auth_deps.get_sub_from_access_token] = lambda: USER
+        app.dependency_overrides[core_db.get_db] = lambda: db
+        return TestClient(app)
+
     def _add(self, db, day: date, hrv: float, user: int = USER):
         db.add(SleepHrv(user_id=user, date=day, hrv_ms=hrv, source="eight_sleep"))
+        db.add(SleepHeartRate(user_id=user, date=day, hr_bpm=hrv / 2, source="eight_sleep"))
         db.commit()
 
     def test_list_is_newest_first_owner_only_and_paginated(self, db):
@@ -387,27 +420,27 @@ class TestHrvRoutes:
         self._add(db, date(2026, 10, 9), 75.0)
         self._add(db, date(2026, 10, 9), 99.0, user=2)
 
-        page = hrv_router.read_sleep_hrv(None, None, USER, db, page_number=1, num_records=2)
+        hrv = self._client(db).get("/hrv", params={"page_number": 1, "num_records": 2}).json()
+        hr = self._client(db).get("/hr", params={"page_number": 1, "num_records": 2}).json()
 
-        assert page.total == 3
-        assert [r.date for r in page.records] == [date(2026, 10, 9), date(2026, 10, 8)]
+        assert hrv["total"] == 3
+        assert [(r["date"], r["hrv_ms"]) for r in hrv["records"]] == [("2026-10-09", 75.0), ("2026-10-08", 71.5)]
+        assert [(r["date"], r["hr_bpm"]) for r in hr["records"]] == [("2026-10-09", 37.5), ("2026-10-08", 35.75)]
 
     def test_interval_limits_the_window(self, db):
         self._add(db, date(2020, 1, 1), 70.0)
         self._add(db, eight_sleep_sync._today(), 71.5)
 
-        page = hrv_router.read_sleep_hrv(
-            None, None, USER, db, interval=hrv_router.health_constants.Interval.LAST_7_DAYS
-        )
+        assert self._client(db).get("/hr", params={"interval": "last_7_days"}).json()["total"] == 1
 
-        assert page.total == 1
-
-    def test_latest_is_the_most_recent_night_or_none(self, db):
-        assert hrv_router.read_latest_sleep_hrv(None, USER, db) is None
+    def test_latest_is_the_most_recent_night_or_null(self, db):
+        client = self._client(db)
+        assert client.get("/hr/latest").json() is None
         self._add(db, date(2026, 10, 7), 70.0)
         self._add(db, date(2026, 10, 9), 75.0)
 
-        assert hrv_router.read_latest_sleep_hrv(None, USER, db).hrv_ms == 75.0
+        assert client.get("/hrv/latest").json()["hrv_ms"] == 75.0
+        assert client.get("/hr/latest").json()["hr_bpm"] == 37.5
 
 
 class TestDashboard:

@@ -14,9 +14,10 @@ is never deleted, and one entered by hand (no source) is never overwritten.
 A failed fetch raises before anything is written, so it can never read as a
 month of deletions.
 
-Each night's HRV goes to the fork-owned ``homelab.sleep_hrv`` (upstream has no
-column for it) and is reconciled over the same window: kept for every night
-that imports, deleted for one that no longer does.
+Each night's HRV and sleeping heart rate, with their 7-day averages and usual
+ranges, go to the fork-owned ``homelab.sleep_hrv`` and ``homelab.sleep_heart_rate``
+(upstream has no columns for them) and are reconciled over the same window:
+kept for every night that imports, deleted for one that no longer does.
 """
 
 import os
@@ -35,7 +36,7 @@ import users.users.models as users_models
 from core.database import SessionLocal
 from homelab.eight_sleep import client as eight_sleep_client
 from homelab.eight_sleep import mapping as eight_sleep_mapping
-from homelab.eight_sleep.models import SleepHrv
+from homelab.eight_sleep.models import SleepHeartRate, SleepHrv
 
 SOURCE = health_sleep_schema.Source.EIGHT_SLEEP.value
 RECENT_DAYS = 30
@@ -150,11 +151,24 @@ def reconcile(
         if row is not None and row.source == SOURCE:
             health_sleep_crud.delete_health_sleep(user_id, row.id, db)
             counts["deleted"] += 1
-    _reconcile_hrv(user_id, window_start, window_end, results, db, counts)
+    _reconcile_metrics(user_id, window_start, window_end, results, db, counts)
     return counts
 
 
-def _reconcile_hrv(
+# Each fork table and which DayResult field fills it, with its columns in
+# NightlyMetric order (value, avg_7d, baseline, range_low, range_high).
+_METRIC_TABLES = (
+    (SleepHrv, "hrv", ("hrv_ms", "avg_7d_ms", "baseline_ms", "range_low_ms", "range_high_ms")),
+    (
+        SleepHeartRate,
+        "heart_rate",
+        ("hr_bpm", "avg_7d_bpm", "baseline_bpm", "range_low_bpm", "range_high_bpm"),
+    ),
+)
+_METRIC_FIELDS = ("value", "avg_7d", "baseline", "range_low", "range_high")
+
+
+def _reconcile_metrics(
     user_id: int,
     window_start: date,
     window_end: date,
@@ -162,37 +176,36 @@ def _reconcile_hrv(
     db: Session,
     counts: Counter,
 ) -> None:
-    """Make ``homelab.sleep_hrv`` match the imported nights in the window."""
-    existing = {
-        row.date: row
-        for row in db.execute(
-            select(SleepHrv).where(
-                SleepHrv.user_id == user_id,
-                SleepHrv.date >= window_start,
-                SleepHrv.date <= window_end,
-            )
-        ).scalars()
-    }
-    for current in sorted(set(results) | set(existing)):
-        result = results.get(current)
-        row = existing.get(current)
-        if result is not None and result.skip is eight_sleep_mapping.Skip.PROCESSING:
-            continue
-        night = result.hrv if result is not None and result.sleep is not None else None
-        if night is None:
-            if row is not None:
-                db.delete(row)
-                counts["hrv deleted"] += 1
-            continue
-        if row is None:
-            row = SleepHrv(user_id=user_id, date=current, source=SOURCE)
-            db.add(row)
-        row.hrv_ms = night.hrv_ms
-        row.avg_7d_ms = night.avg_7d_ms
-        row.baseline_ms = night.baseline_ms
-        row.range_low_ms = night.range_low_ms
-        row.range_high_ms = night.range_high_ms
-        counts["hrv"] += 1
+    """Make each per-night fork table match the imported nights in the window."""
+    for model, attr, columns in _METRIC_TABLES:
+        existing = {
+            row.date: row
+            for row in db.execute(
+                select(model).where(
+                    model.user_id == user_id,
+                    model.date >= window_start,
+                    model.date <= window_end,
+                )
+            ).scalars()
+        }
+        label = attr.replace("_", " ")
+        for current in sorted(set(results) | set(existing)):
+            result = results.get(current)
+            row = existing.get(current)
+            if result is not None and result.skip is eight_sleep_mapping.Skip.PROCESSING:
+                continue
+            night = getattr(result, attr) if result is not None and result.sleep is not None else None
+            if night is None:
+                if row is not None:
+                    db.delete(row)
+                    counts[f"{label} deleted"] += 1
+                continue
+            if row is None:
+                row = model(user_id=user_id, date=current, source=SOURCE)
+                db.add(row)
+            for column, field in zip(columns, _METRIC_FIELDS, strict=True):
+                setattr(row, column, getattr(night, field))
+            counts[label] += 1
     db.commit()
 
 
@@ -242,10 +255,13 @@ def sync_history() -> None:
 
 
 def _has_rows() -> bool:
-    # HRV rows, not sleep rows: sleep imported before sleep_hrv existed still
-    # needs the full-history run to fill it.
+    # Every per-night table, not just sleep: nights imported before a table
+    # existed (sleep_hrv in hl0005, sleep_heart_rate in hl0006) still need the
+    # full-history run to fill it.
     with SessionLocal() as db:
-        return db.execute(select(SleepHrv.date).limit(1)).scalar_one_or_none() is not None
+        return all(
+            db.execute(select(model.date).limit(1)).scalar_one_or_none() is not None for model, _, _ in _METRIC_TABLES
+        )
 
 
 def register_jobs() -> None:
@@ -254,7 +270,7 @@ def register_jobs() -> None:
         return
     core_scheduler.add_scheduler_job(sync_recent, "interval", 60, [], "sync Eight Sleep sleep for the last 30 days")
     core_scheduler.add_scheduler_job(sync_history, "interval", 1440, [], "sync the full Eight Sleep sleep history")
-    # At startup: the backfill if no HRV has been imported yet, otherwise the
+    # At startup: the backfill if a per-night table is still empty, otherwise the
     # recent window, so a deploy never waits an hour for its first sync.
     try:
         startup = sync_recent if _has_rows() else sync_history

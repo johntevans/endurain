@@ -6,7 +6,7 @@ import auth.dependencies as auth_dependencies
 import core.config as core_config
 from homelab.activity_tags import public_router as activity_tags_public_router
 from homelab.activity_tags import router as activity_tags_router
-from homelab.eight_sleep import router as sleep_hrv_router
+from homelab.eight_sleep import router as sleep_metrics_router
 from homelab.lap_intensity import router as lap_intensity_router
 from homelab.training_load import router as training_load_router
 from homelab.training_log import router as training_log_router
@@ -43,8 +43,14 @@ router.include_router(
     dependencies=[Depends(auth_dependencies.validate_access_token)],
 )
 router.include_router(
-    sleep_hrv_router.router,
+    sleep_metrics_router.hrv_router,
     prefix=core_config.ROOT_PATH + "/homelab/sleep_hrv",
     tags=["homelab_sleep_hrv"],
+    dependencies=[Depends(auth_dependencies.validate_access_token)],
+)
+router.include_router(
+    sleep_metrics_router.heart_rate_router,
+    prefix=core_config.ROOT_PATH + "/homelab/sleep_heart_rate",
+    tags=["homelab_sleep_heart_rate"],
     dependencies=[Depends(auth_dependencies.validate_access_token)],
 )

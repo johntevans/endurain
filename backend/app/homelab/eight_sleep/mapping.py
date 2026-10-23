@@ -48,21 +48,24 @@ class Skip(Enum):
 
 
 @dataclass
-class HrvNight:
-    """Eight Sleep's HRV block for one night (``sleepQualityScore.hrv``), in ms."""
+class NightlyMetric:
+    """One of Eight Sleep's per-night ``sleepQualityScore`` blocks (``hrv`` in ms,
+    ``heartRate`` in bpm): the night's value as the app shows it, the 7-day
+    average including it, the long-run baseline and the usual range."""
 
-    hrv_ms: float
-    avg_7d_ms: float | None
-    baseline_ms: float | None
-    range_low_ms: float | None
-    range_high_ms: float | None
+    value: float
+    avg_7d: float | None
+    baseline: float | None
+    range_low: float | None
+    range_high: float | None
 
 
 @dataclass
 class DayResult:
     date: date
     sleep: health_sleep_schema.HealthSleepBase | None = None
-    hrv: HrvNight | None = None
+    hrv: NightlyMetric | None = None
+    heart_rate: NightlyMetric | None = None
     skip: Skip | None = None
 
 
@@ -128,18 +131,18 @@ def _number(value: Any) -> float | None:
     return float(value)
 
 
-def _hrv(day: dict[str, Any]) -> HrvNight | None:
-    """The night's HRV as the app shows it (71.5 here is the app's "72")."""
-    block = _quality(day, "hrv")
+def _metric(day: dict[str, Any], key: str) -> NightlyMetric | None:
+    """A night's ``sleepQualityScore`` block as the app shows it (HRV 71.5 is its "72")."""
+    block = _quality(day, key)
     current = _number(block.get("current"))
     if current is None or current <= 0:
         return None
-    return HrvNight(
-        hrv_ms=current,
-        avg_7d_ms=_number(block.get("inclusive7DayAverage")),
-        baseline_ms=_number(block.get("average")),
-        range_low_ms=_number(block.get("lowerRange")),
-        range_high_ms=_number(block.get("upperRange")),
+    return NightlyMetric(
+        value=current,
+        avg_7d=_number(block.get("inclusive7DayAverage")),
+        baseline=_number(block.get("average")),
+        range_low=_number(block.get("lowerRange")),
+        range_high=_number(block.get("upperRange")),
     )
 
 
@@ -211,7 +214,7 @@ def map_day(day: dict[str, Any], default_tz: str) -> DayResult:
     health_sleep_scoring._calculate_and_set_sleep_scores(sleep)
     sleep.sleep_score_overall = _int_in(score, 0, 100) if isinstance(score, int | float) else None
     sleep.sleep_score_quality = _band(sleep.sleep_score_overall)
-    return DayResult(day_date, sleep=sleep, hrv=_hrv(day))
+    return DayResult(day_date, sleep=sleep, hrv=_metric(day, "hrv"), heart_rate=_metric(day, "heartRate"))
 
 
 def _band(score: int | None) -> health_sleep_schema.SleepScore | None:
