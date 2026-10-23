@@ -10,6 +10,7 @@ from homelab.eight_sleep import router as sleep_metrics_router
 from homelab.lap_intensity import router as lap_intensity_router
 from homelab.training_load import router as training_load_router
 from homelab.training_log import router as training_log_router
+from homelab.withings import public_router as withings_public_router
 
 router = APIRouter()
 
@@ -53,4 +54,11 @@ router.include_router(
     prefix=core_config.ROOT_PATH + "/homelab/sleep_heart_rate",
     tags=["homelab_sleep_heart_rate"],
     dependencies=[Depends(auth_dependencies.validate_access_token)],
+)
+# Unauthenticated: the browser lands here from Withings; the signed state is the
+# authorisation (homelab/withings/link.py).
+router.include_router(
+    withings_public_router.router,
+    prefix=core_config.ROOT_PATH + "/public/homelab/withings",
+    tags=["homelab_public_withings"],
 )

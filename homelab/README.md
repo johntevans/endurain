@@ -133,6 +133,7 @@ the schema (see `backend/tests/homelab/test_activity_tags.py`).
 | `homelab.training_load_settings` | The owner's Intervals.icu thresholds: `(user_id → users.id ON DELETE CASCADE, resting_hr, threshold_hr, max_hr, threshold_pace s/km, updated_at)`, PK `user_id` | `hl0004` |
 | `homelab.activity_loads` | Cache of each activity's training load: `(activity_id → activities.id ON DELETE CASCADE, load, source ∈ pace/hr/none, pace_load, hr_load, activity_type, computed_at)`, PK `activity_id` | `hl0004` |
 | `homelab.sleep_hrv` | Nightly HRV from Eight Sleep: `(user_id → users.id ON DELETE CASCADE, date, hrv_ms, avg_7d_ms, baseline_ms, range_low_ms, range_high_ms, source)`, PK `(user_id, date)`. Rebuilt by the sync's daily history run | `hl0005` |
+| `homelab.withings_tokens` | One row per user who linked Withings: `(user_id → users.id ON DELETE CASCADE, withings_userid, access_token, refresh_token, expires_at, scope, updated_at)`, both tokens Fernet-encrypted with `FERNET_KEY`. Dropping it only unlinks Withings | `hl0007` |
 | `homelab.sleep_heart_rate` | Nightly sleeping heart rate from Eight Sleep, same shape in bpm: `(user_id, date, hr_bpm, avg_7d_bpm, baseline_bpm, range_low_bpm, range_high_bpm, source)`, PK `(user_id, date)`. `hr_bpm` duplicates `health_sleep.resting_heart_rate`; the rest has no upstream column | `hl0006` |
 
 **Lap intensity and training-log quality.** A lap's effective intensity is its override, else
@@ -351,6 +352,32 @@ notices.
   checks ran the same way, in a throwaway `node:24-slim` container with an anonymous volume
   over `node_modules`. Run it as root, or `npm ci` cannot write that volume and `npx`
   silently fetches other tool versions.
+
+### Withings (body weight), in progress
+
+`backend/app/homelab/withings/`. **Step 1, linking, is built. The weight sync is not yet.**
+Withings has an official OAuth 2.0 API, so no password is stored:
+
+- **Configured by** `WITHINGS_CLIENT_ID`, `WITHINGS_CLIENT_SECRET` and `WITHINGS_REDIRECT_URI`.
+  The last is the callback exactly as registered in the Withings developer dashboard:
+  `https://tempo.thegainzlab.dev/api/v1/public/homelab/withings/callback`.
+- **Linking**: `python -m homelab.withings.cli link` prints an approval URL, valid 10 minutes.
+  After approval, Withings sends the browser to the public callback (`public_router.py`),
+  which exchanges the code at once, because **a Withings authorization code lasts 30 s**. It
+  stores both tokens Fernet-encrypted in `homelab.withings_tokens`. `cli status` shows the
+  link without printing a token. `cli refresh` forces a refresh to prove one works.
+- **The `state` is the authorisation.** The callback has to be unauthenticated (it is a
+  browser redirect from Withings), so `link.py` issues a Fernet token over
+  `withings-link:<user_id>` with a 10-minute TTL. It cannot be forged without `FERNET_KEY`,
+  needs no server-side storage, and is the only thing the callback trusts. A bare GET or HEAD
+  with no parameters answers 200, in case the dashboard checks the URL when it is saved.
+- **Each refresh replaces the refresh token** (access tokens last 3 h, refresh tokens
+  12 months), which is why they live in the database and not in `.env`. `tokens.access_token`
+  refreshes 10 minutes before expiry under a `SELECT … FOR UPDATE`. A refresh token works
+  once, so two concurrent refreshes would leave the loser holding a dead one. A failed
+  refresh keeps the old row, and the fix is `cli link` again.
+- Tried before release on a throwaway Postgres copy of the dev DB, through `main.app`
+  (migration, callback, encrypted storage, row-locked refresh, CLI), as for `hl0005`.
 
 ## Dev stack
 
