@@ -22,16 +22,21 @@ import {
   formatWater,
   formatWeight,
   hrvStatusKey,
+  formatHealthEntryDate,
 } from '@/features/health/utils/healthFormat'
+// Homelab fork: nightly HRV tile (features/sleepHrv).
+import { useLatestSleepHrvQuery } from '@/features/sleepHrv/composables/useSleepHrv'
+import { formatHrv } from '@/features/sleepHrv/utils/sleepHrv'
 
 /**
  * Health dashboard zone. Renders a grid of metric cards combining today's
  * health stats with the user's targets (target value + an up/down arrow), in
  * the user's unit system. Mirrors v1's HealthDashboardZoneComponent.
  */
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const dashboardQuery = useHealthDashboardQuery()
+const latestHrvQuery = useLatestSleepHrvQuery() // homelab fork
 const targetsQuery = useHealthTargetsQuery()
 const { data: user } = useCurrentUser()
 
@@ -136,6 +141,22 @@ const cards = computed<CardModel[]>(() => {
       value: d?.restingHeartRate != null ? formatRestingHeartRate(d.restingHeartRate) : null,
       noDataLabel: noData,
       footerText: hrvLabel(d?.hrvStatus ?? null),
+    },
+    // homelab fork: the latest night's HRV, dated because it need not be last night.
+    {
+      key: 'hrv',
+      title: t('sleepHrv.dashboard.title'),
+      value: latestHrvQuery.data.value ? formatHrv(latestHrvQuery.data.value.hrvMs) : null,
+      noDataLabel: noData,
+      subtitle: latestHrvQuery.data.value
+        ? formatHealthEntryDate(latestHrvQuery.data.value.date, locale.value)
+        : null,
+      footerText:
+        latestHrvQuery.data.value?.avg7dMs != null
+          ? t('sleepHrv.dashboard.footer', {
+              average: formatHrv(latestHrvQuery.data.value.avg7dMs),
+            })
+          : null,
     },
     {
       key: 'skinTemp',

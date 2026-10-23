@@ -132,6 +132,7 @@ the schema (see `backend/tests/homelab/test_activity_tags.py`).
 | `homelab.lap_intensity_overrides` | The owner's lap intensity corrections: `(lap_id → activity_laps.id ON DELETE CASCADE, intensity ∈ FIT's active/interval/warmup/cooldown/recovery/rest/other, updated_at)`, PK `lap_id` | `hl0003` |
 | `homelab.training_load_settings` | The owner's Intervals.icu thresholds: `(user_id → users.id ON DELETE CASCADE, resting_hr, threshold_hr, max_hr, threshold_pace s/km, updated_at)`, PK `user_id` | `hl0004` |
 | `homelab.activity_loads` | Cache of each activity's training load: `(activity_id → activities.id ON DELETE CASCADE, load, source ∈ pace/hr/none, pace_load, hr_load, activity_type, computed_at)`, PK `activity_id` | `hl0004` |
+| `homelab.sleep_hrv` | Nightly HRV from Eight Sleep: `(user_id → users.id ON DELETE CASCADE, date, hrv_ms, avg_7d_ms, baseline_ms, range_low_ms, range_high_ms, source)`, PK `(user_id, date)`. Rebuilt by the sync's daily history run | `hl0005` |
 
 **Lap intensity and training-log quality.** A lap's effective intensity is its override, else
 the recorded `activity_laps.intensity`, else `active` (FIT's default, what a lap of an
@@ -280,6 +281,27 @@ notices.
 - **One row per date, from the day's main session** (`mainSessionId`). Eight Sleep's day totals
   cover only that session, so a second session the same day changes nothing. Eight Sleep's score
   is stored as the overall score, so it matches the app, and the quality label follows it.
+- **HRV and resting HR are Eight Sleep's own figures**, from the day's `sleepQualityScore`
+  block, not recomputed from the timeseries. `hrv.current` is the number the app shows (71.5
+  on 2026-10-08, shown as "72"). The mean of the `rmssd` series was 74, and the `hrv` series is
+  a different, much larger quantity. The same block carries the 7-day average
+  (`inclusive7DayAverage`), the long-run `average` and the usual range
+  (`lowerRange`–`upperRange`), back to the first night in 2022. `±9999` marks an open-ended
+  bound and is stored as null. HRV goes in `homelab.sleep_hrv` (upstream has only Garmin's
+  status label), reconciled over the same window as the sleep rows. `heartRate.current`
+  becomes `resting_heart_rate`, which feeds upstream's Resting HR page and tile. It is Eight
+  Sleep's sleeping heart rate (43 that night, against a series minimum of 41), not a
+  clinical resting HR.
+- **The HRV zone** (`frontend/src/features/sleepHrv/`, route `/health/hrv`, API
+  `/api/v1/homelab/sleep_hrv` and `/latest`) has a chart of the nightly value, the dashed
+  7-day average, and the usual range as two faint lines. The range is drawn per night because
+  it moves: about 88–108 ms in 2022, 65–80 ms in 2026. Below the chart is a list flagging
+  nights outside the range, and the dashboard gets a tile with the latest night, dated, since
+  it need not be last night. The chart fetches the whole window and the list one page, so the
+  trend is never cut to a page.
+- **The dashboard showed no Eight Sleep sleep at all** until `hl0005`'s release. Upstream's
+  `/health/stats/daily` built its sleep block only when `hrv_status` was set, which only
+  Garmin fills. The condition is now any sleep row (marked `homelab fork` in `health/router.py`).
 - **Daytime sessions are skipped**: a main session starting 06:00–18:00 local is not imported.
   On days with no overnight session Eight Sleep promotes whatever else it recorded to "main",
   and in October 2026 that was someone else on the bed (avg HR ~75 against ~47, scoring
@@ -292,20 +314,32 @@ notices.
   whose night is gone is deleted. Rows from another source are never deleted, rows entered by
   hand are never overwritten, a failed fetch writes nothing, and an empty answer for a window
   that holds Eight Sleep rows deletes nothing. At startup it backfills if no Eight Sleep rows
-  exist yet, and syncs the last 30 days otherwise.
+  exist yet, and syncs the last 30 days otherwise. Since `hl0005`, "no rows" means no HRV rows,
+  so the first start after that release refills every night's HRV and resting HR.
 - **Garmin stands aside.** When Eight Sleep is configured, upstream's Garmin health sync skips
   its sleep fetch (marked `homelab fork` in `garmin/health_utils.py`). Both write one row per
   date and the last writer would win. Weight and steps still come from Garmin.
 - **Upstream edits**: the `eight_sleep` value in the sleep `Source` enum (`health_sleep/schema.py`;
-  without it upstream's read schema rejects the rows), the Garmin gate above, and job
-  registration in `main.py`. Data only, no schema. Rolling back to vanilla leaves rows whose
+  without it upstream's read schema rejects the rows), the Garmin gate above, job
+  registration in `main.py`, the dashboard condition in `health/router.py`, and for the HRV
+  zone its route (`router/index.ts`), nav entry (`healthNav.ts`), dashboard tile
+  (`HealthDashboardView.vue`) and translation namespace (`i18n/index.ts`). The translation
+  file `sleepHrv.json` is English in every locale, because the parity test requires the file
+  to exist in each. No upstream schema; HRV is in the fork's own table. Rolling back to vanilla leaves rows whose
   `source` upstream's enum rejects, so delete `source = 'eight_sleep'` rows before doing that.
   The frontend shows them without the Garmin icon and needs no change.
 - Testing against real data without repointing the shared dev stack: run the code in a
   throwaway `endurain-dev:local` container on the `endurain-dev_default` network, with the
   checkout's `backend/app` mounted read-only and the credentials in a temporary `--env-file`.
   `import main` first, so every model is mapped. Delete the rows afterwards: the served dev
-  backend may run code without the enum value.
+  backend may run code without the enum value. A change that adds a fork migration must not
+  run against the shared dev database at all, because the served backend would then refuse a
+  revision it does not know. For `hl0005` the dev DB was copied (`pg_dump | pg_restore`) into a
+  throwaway `postgres:18` and `redis:8-alpine` (network alias `redis`) on a private network,
+  and the throwaway backend container pointed there with `DB_HOST`/`DB_PASSWORD`. The frontend
+  checks ran the same way, in a throwaway `node:24-slim` container with an anonymous volume
+  over `node_modules`. Run it as root, or `npm ci` cannot write that volume and `npx`
+  silently fetches other tool versions.
 
 ## Dev stack
 

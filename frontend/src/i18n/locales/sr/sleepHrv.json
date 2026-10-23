@@ -1,0 +1,34 @@
+{
+  "nav": "HRV",
+  "title": "HRV",
+  "subtitle": "Overnight heart-rate variability (RMSSD) from Eight Sleep, against your 7-day average and usual range.",
+  "interval": { "label": "Time range" },
+  "chart": {
+    "title": "Nightly HRV",
+    "nightly": "HRV",
+    "average": "7-day average",
+    "range": "Usual range"
+  },
+  "list": {
+    "average": "7-day avg {value}",
+    "range": "usual {value}"
+  },
+  "status": {
+    "below": "Below usual",
+    "within": "Within usual",
+    "above": "Above usual"
+  },
+  "dashboard": {
+    "title": "HRV",
+    "footer": "7-day avg {average}"
+  },
+  "empty": {
+    "title": "No HRV yet",
+    "description": "Nightly HRV appears here once the Eight Sleep sync has imported a night."
+  },
+  "error": {
+    "title": "Couldn't load HRV",
+    "description": "Something went wrong fetching your HRV history.",
+    "retry": "Try again"
+  }
+}

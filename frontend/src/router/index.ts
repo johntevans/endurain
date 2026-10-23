@@ -142,6 +142,12 @@ const router = createRouter({
           component: () => import('@/features/health/views/HealthRestingHeartRateView.vue'),
         },
         {
+          // Homelab fork: nightly HRV from Eight Sleep (features/sleepHrv).
+          path: 'hrv',
+          name: 'health-hrv',
+          component: () => import('@/features/sleepHrv/views/SleepHrvView.vue'),
+        },
+        {
           path: 'steps',
           name: 'health-steps',
           component: () => import('@/features/health/views/HealthStepsView.vue'),

@@ -25,6 +25,8 @@ import enTrainingLog from './locales/en/trainingLog.json'
 import enLapIntensity from './locales/en/lapIntensity.json'
 // Homelab fork: training load (features/trainingLoad).
 import enTrainingLoad from './locales/en/trainingLoad.json'
+// Homelab fork: nightly HRV (features/sleepHrv).
+import enSleepHrv from './locales/en/sleepHrv.json'
 
 /**
  * English message set, assembled from one file per feature namespace. The
@@ -52,6 +54,7 @@ const en = {
   trainingLog: enTrainingLog, // homelab fork
   lapIntensity: enLapIntensity, // homelab fork
   trainingLoad: enTrainingLoad, // homelab fork
+  sleepHrv: enSleepHrv, // homelab fork
 }
 
 /**
