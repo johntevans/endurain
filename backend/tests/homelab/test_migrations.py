@@ -36,7 +36,7 @@ def test_config_points_at_the_fork_environment():
 
 def test_single_linear_chain_separate_from_upstream():
     fork = ScriptDirectory.from_config(db_migrations.build_config())
-    assert fork.get_heads() == ["hl0004"]
+    assert fork.get_heads() == ["hl0005"]
     assert fork.get_base() == "hl0001"
 
     upstream_config = Config()

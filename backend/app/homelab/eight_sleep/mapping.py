@@ -48,9 +48,21 @@ class Skip(Enum):
 
 
 @dataclass
+class HrvNight:
+    """Eight Sleep's HRV block for one night (``sleepQualityScore.hrv``), in ms."""
+
+    hrv_ms: float
+    avg_7d_ms: float | None
+    baseline_ms: float | None
+    range_low_ms: float | None
+    range_high_ms: float | None
+
+
+@dataclass
 class DayResult:
     date: date
     sleep: health_sleep_schema.HealthSleepBase | None = None
+    hrv: HrvNight | None = None
     skip: Skip | None = None
 
 
@@ -102,6 +114,33 @@ def _stages(session: dict[str, Any], start: datetime | None) -> list[health_slee
             )
         clock = end
     return stages or None
+
+
+def _quality(day: dict[str, Any], key: str) -> dict[str, Any]:
+    block = (day.get("sleepQualityScore") or {}).get(key)
+    return block if isinstance(block, dict) else {}
+
+
+def _number(value: Any) -> float | None:
+    # Eight Sleep marks an open-ended bound with +/-9999.
+    if isinstance(value, bool) or not isinstance(value, int | float) or abs(value) >= 9999:
+        return None
+    return float(value)
+
+
+def _hrv(day: dict[str, Any]) -> HrvNight | None:
+    """The night's HRV as the app shows it (71.5 here is the app's "72")."""
+    block = _quality(day, "hrv")
+    current = _number(block.get("current"))
+    if current is None or current <= 0:
+        return None
+    return HrvNight(
+        hrv_ms=current,
+        avg_7d_ms=_number(block.get("inclusive7DayAverage")),
+        baseline_ms=_number(block.get("average")),
+        range_low_ms=_number(block.get("lowerRange")),
+        range_high_ms=_number(block.get("upperRange")),
+    )
 
 
 def _seconds(value: Any) -> int | None:
@@ -159,6 +198,9 @@ def map_day(day: dict[str, Any], default_tz: str) -> DayResult:
         lowest_respiration=_int_in(min(respiration), 0, 100) if respiration else None,
         highest_respiration=_int_in(max(respiration), 0, 100) if respiration else None,
         sleep_stages=_stages(session, _parse_utc(session.get("ts"))),
+        # Eight Sleep's own sleeping heart rate (the app's figure), which feeds
+        # upstream's resting-HR page and dashboard tile. Not a clinical resting HR.
+        resting_heart_rate=_int_in(_number(_quality(day, "heartRate").get("current")), 20, 220),
         source=health_sleep_schema.Source.EIGHT_SLEEP,
     )
     # Endurain's own per-component labels (duration, awakenings, stage
@@ -169,7 +211,7 @@ def map_day(day: dict[str, Any], default_tz: str) -> DayResult:
     health_sleep_scoring._calculate_and_set_sleep_scores(sleep)
     sleep.sleep_score_overall = _int_in(score, 0, 100) if isinstance(score, int | float) else None
     sleep.sleep_score_quality = _band(sleep.sleep_score_overall)
-    return DayResult(day_date, sleep=sleep)
+    return DayResult(day_date, sleep=sleep, hrv=_hrv(day))
 
 
 def _band(score: int | None) -> health_sleep_schema.SleepScore | None:

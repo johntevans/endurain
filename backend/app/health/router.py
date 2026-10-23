@@ -86,11 +86,13 @@ def read_health_daily_stats(
 
     # Build dashboard response with only necessary fields
     sleep_data = None
-    if today_sleep and today_sleep.hrv_status is not None:
+    # homelab fork: any sleep row, not only one with Garmin's hrv_status. Eight
+    # Sleep rows have none, so upstream's condition hid their sleep and RHR tiles.
+    if today_sleep:
         sleep_data = health_schema.HealthSleepDashboard(
             total_sleep_seconds=today_sleep.total_sleep_seconds,
             resting_heart_rate=today_sleep.resting_heart_rate,
-            hrv_status=str(today_sleep.hrv_status),
+            hrv_status=str(today_sleep.hrv_status) if today_sleep.hrv_status is not None else None,
             avg_skin_temp_deviation=today_sleep.avg_skin_temp_deviation,
         )
 

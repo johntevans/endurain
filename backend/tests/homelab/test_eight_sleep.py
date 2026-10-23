@@ -8,16 +8,19 @@ deletes or keeps is decided by SQL ``WHERE`` clauses.
 
 from collections.abc import Iterator
 from datetime import UTC, date, datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 import health.health_sleep.models as health_sleep_models
+from homelab.database import HomelabBase
 from homelab.eight_sleep import client as eight_sleep_client
 from homelab.eight_sleep import mapping as eight_sleep_mapping
+from homelab.eight_sleep import router as hrv_router
 from homelab.eight_sleep import sync as eight_sleep_sync
+from homelab.eight_sleep.models import SleepHrv
 from tests._helpers.db import create_sqlite_session
 
 USER = 1
@@ -60,6 +63,17 @@ def _day(day: str, sessions: list[dict], main: str | None = None, **overrides) -
         "sleepEnd": f"{day}T11:30:00.000Z",
         "mainSessionId": main if main is not None else sessions[0]["id"],
         "sessions": sessions,
+        "sleepQualityScore": {
+            "hrv": {
+                "current": 71.5,
+                "inclusive7DayAverage": 72.7,
+                "average": 72.9,
+                "lowerRange": 65.6,
+                "upperRange": 80.2,
+                "upperBound": 9999,
+            },
+            "heartRate": {"current": 43, "lowerBound": -9999},
+        },
     }
     record.update(overrides)
     return record
@@ -88,6 +102,23 @@ class TestMapDay:
         assert sleep.sleep_score_overall == 88
         assert sleep.sleep_score_quality == "GOOD"
         assert sleep.sleep_score_duration is not None
+
+    def test_hrv_and_resting_hr_are_eight_sleeps_own_figures(self):
+        result = eight_sleep_mapping.map_day(_night("2026-10-08"), TZ)
+
+        # 71.5 is what the app shows as "72"; the timeseries mean was 74.
+        assert result.hrv.hrv_ms == 71.5
+        assert (result.hrv.avg_7d_ms, result.hrv.baseline_ms) == (72.7, 72.9)
+        assert (result.hrv.range_low_ms, result.hrv.range_high_ms) == (65.6, 80.2)
+        assert result.sleep.resting_heart_rate == 43
+
+    def test_missing_or_sentinel_quality_values_are_none(self):
+        day = _night("2026-10-08")
+        day["sleepQualityScore"] = {"hrv": {"current": 0, "upperRange": 9999}, "heartRate": {"current": -9999}}
+
+        result = eight_sleep_mapping.map_day(day, TZ)
+        assert result.hrv is None
+        assert result.sleep.resting_heart_rate is None
 
     def test_local_times_are_wall_clock_labelled_utc_like_garmin(self):
         sleep = eight_sleep_mapping.map_day(_night("2026-10-08"), TZ).sleep
@@ -153,6 +184,9 @@ class TestMapDay:
 @pytest.fixture
 def db() -> Iterator[Session]:
     session = create_sqlite_session()
+    session.execute(text("ATTACH DATABASE ':memory:' AS homelab"))
+    HomelabBase.metadata.create_all(session.connection())
+    session.commit()
     try:
         yield session
     finally:
@@ -256,6 +290,34 @@ class TestReconcile:
         assert counts["refused empty"] == 1
         assert len(_rows(db)) == 2
 
+    def test_hrv_follows_the_imported_nights(self, db):
+        self._reconcile(db, [_night("2026-10-08"), _night("2026-10-09")])
+        night = _night("2026-10-09")
+        night["sleepQualityScore"]["hrv"]["current"] = 80.0
+        counts = self._reconcile(db, [night])
+
+        rows = {r.date: r.hrv_ms for r in db.execute(select(SleepHrv)).scalars()}
+        assert rows == {date(2026, 10, 9): 80.0}
+        assert counts["hrv deleted"] == 1
+
+    def test_hrv_is_kept_beside_a_manual_sleep_entry(self, db):
+        _row(db, date(2026, 10, 8), None)
+        self._reconcile(db, [_night("2026-10-08")])
+
+        assert db.execute(select(SleepHrv.date)).scalars().all() == [date(2026, 10, 8)]
+
+    def test_daytime_night_gets_no_hrv(self, db):
+        daytime = _day("2026-10-20", [_session("d", "2026-10-20T18:43:00.000Z")])
+        self._reconcile(db, [daytime])
+
+        assert db.execute(select(SleepHrv)).scalars().all() == []
+
+    def test_processing_night_keeps_its_hrv(self, db):
+        self._reconcile(db, [_night("2026-10-22")])
+        self._reconcile(db, [_night("2026-10-22", processing=True)])
+
+        assert db.execute(select(SleepHrv.date)).scalars().all() == [date(2026, 10, 22)]
+
     def test_rows_outside_the_window_are_untouched(self, db):
         _row(db, date(2026, 9, 1), "eight_sleep")
         self._reconcile(db, [_night("2026-10-08")])
@@ -312,3 +374,66 @@ class TestClient:
             pytest.raises(eight_sleep_client.EightSleepError),
         ):
             eight_sleep_client.fetch_days(date(2026, 1, 1), date(2026, 1, 2), TZ)
+
+
+class TestHrvRoutes:
+    def _add(self, db, day: date, hrv: float, user: int = USER):
+        db.add(SleepHrv(user_id=user, date=day, hrv_ms=hrv, source="eight_sleep"))
+        db.commit()
+
+    def test_list_is_newest_first_owner_only_and_paginated(self, db):
+        self._add(db, date(2026, 10, 7), 70.0)
+        self._add(db, date(2026, 10, 8), 71.5)
+        self._add(db, date(2026, 10, 9), 75.0)
+        self._add(db, date(2026, 10, 9), 99.0, user=2)
+
+        page = hrv_router.read_sleep_hrv(None, None, USER, db, page_number=1, num_records=2)
+
+        assert page.total == 3
+        assert [r.date for r in page.records] == [date(2026, 10, 9), date(2026, 10, 8)]
+
+    def test_interval_limits_the_window(self, db):
+        self._add(db, date(2020, 1, 1), 70.0)
+        self._add(db, eight_sleep_sync._today(), 71.5)
+
+        page = hrv_router.read_sleep_hrv(
+            None, None, USER, db, interval=hrv_router.health_constants.Interval.LAST_7_DAYS
+        )
+
+        assert page.total == 1
+
+    def test_latest_is_the_most_recent_night_or_none(self, db):
+        assert hrv_router.read_latest_sleep_hrv(None, USER, db) is None
+        self._add(db, date(2026, 10, 7), 70.0)
+        self._add(db, date(2026, 10, 9), 75.0)
+
+        assert hrv_router.read_latest_sleep_hrv(None, USER, db).hrv_ms == 75.0
+
+
+class TestDashboard:
+    def test_sleep_without_garmin_hrv_status_still_reaches_the_dashboard(self, mock_db):
+        # Upstream returned no sleep at all unless hrv_status (Garmin-only) was set,
+        # which blanked the Sleep and Resting HR tiles for every Eight Sleep night.
+        from fastapi.testclient import TestClient
+
+        from tests.health.test_health_router import _build_app
+
+        sleep = MagicMock(
+            total_sleep_seconds=24210, resting_heart_rate=43, hrv_status=None, avg_skin_temp_deviation=None
+        )
+        with (
+            patch("health.router.health_sleep_crud.get_health_sleep_by_date_and_user_id", return_value=sleep),
+            patch("health.router.health_weight_crud.get_latest_weight_by_user_id", return_value=None),
+            patch("health.router.health_steps_crud.get_health_steps_by_date_and_user_id", return_value=None),
+            patch("health.router.health_fasting_crud.get_active_fasting_by_user_id", return_value=None),
+            patch("health.router.health_water_crud.get_health_water_by_date_and_user_id", return_value=None),
+            patch("health.router.health_poop_crud.get_health_poop_by_date_and_user_id", return_value=None),
+        ):
+            response = TestClient(_build_app(mock_db)).get("/health/stats/daily", headers={"Authorization": "Bearer x"})
+
+        assert response.json()["sleep"] == {
+            "total_sleep_seconds": 24210,
+            "resting_heart_rate": 43,
+            "hrv_status": None,
+            "avg_skin_temp_deviation": None,
+        }
