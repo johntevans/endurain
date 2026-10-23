@@ -137,15 +137,19 @@ const router = createRouter({
           component: () => import('@/features/health/views/HealthSleepView.vue'),
         },
         {
+          // Homelab fork: Eight Sleep's nightly heart rate with its 7-day average and
+          // usual range, in place of upstream's HealthRestingHeartRateView (features/sleepMetrics).
           path: 'rhr',
           name: 'health-rhr',
-          component: () => import('@/features/health/views/HealthRestingHeartRateView.vue'),
+          component: () => import('@/features/sleepMetrics/views/NightlyMetricView.vue'),
+          props: { kind: 'heartRate' },
         },
         {
-          // Homelab fork: nightly HRV from Eight Sleep (features/sleepHrv).
+          // Homelab fork: nightly HRV from Eight Sleep (features/sleepMetrics).
           path: 'hrv',
           name: 'health-hrv',
-          component: () => import('@/features/sleepHrv/views/SleepHrvView.vue'),
+          component: () => import('@/features/sleepMetrics/views/NightlyMetricView.vue'),
+          props: { kind: 'hrv' },
         },
         {
           path: 'steps',

@@ -133,6 +133,7 @@ the schema (see `backend/tests/homelab/test_activity_tags.py`).
 | `homelab.training_load_settings` | The owner's Intervals.icu thresholds: `(user_id → users.id ON DELETE CASCADE, resting_hr, threshold_hr, max_hr, threshold_pace s/km, updated_at)`, PK `user_id` | `hl0004` |
 | `homelab.activity_loads` | Cache of each activity's training load: `(activity_id → activities.id ON DELETE CASCADE, load, source ∈ pace/hr/none, pace_load, hr_load, activity_type, computed_at)`, PK `activity_id` | `hl0004` |
 | `homelab.sleep_hrv` | Nightly HRV from Eight Sleep: `(user_id → users.id ON DELETE CASCADE, date, hrv_ms, avg_7d_ms, baseline_ms, range_low_ms, range_high_ms, source)`, PK `(user_id, date)`. Rebuilt by the sync's daily history run | `hl0005` |
+| `homelab.sleep_heart_rate` | Nightly sleeping heart rate from Eight Sleep, same shape in bpm: `(user_id, date, hr_bpm, avg_7d_bpm, baseline_bpm, range_low_bpm, range_high_bpm, source)`, PK `(user_id, date)`. `hr_bpm` duplicates `health_sleep.resting_heart_rate`; the rest has no upstream column | `hl0006` |
 
 **Lap intensity and training-log quality.** A lap's effective intensity is its override, else
 the recorded `activity_laps.intensity`, else `active` (FIT's default, what a lap of an
@@ -287,18 +288,26 @@ notices.
   a different, much larger quantity. The same block carries the 7-day average
   (`inclusive7DayAverage`), the long-run `average` and the usual range
   (`lowerRange`–`upperRange`), back to the first night in 2022. `±9999` marks an open-ended
-  bound and is stored as null. HRV goes in `homelab.sleep_hrv` (upstream has only Garmin's
-  status label), reconciled over the same window as the sleep rows. `heartRate.current`
-  becomes `resting_heart_rate`, which feeds upstream's Resting HR page and tile. It is Eight
-  Sleep's sleeping heart rate (43 that night, against a series minimum of 41), not a
-  clinical resting HR.
-- **The HRV zone** (`frontend/src/features/sleepHrv/`, route `/health/hrv`, API
-  `/api/v1/homelab/sleep_hrv` and `/latest`) has a chart of the nightly value, the dashed
-  7-day average, and the usual range as two faint lines. The range is drawn per night because
-  it moves: about 88–108 ms in 2022, 65–80 ms in 2026. Below the chart is a list flagging
-  nights outside the range, and the dashboard gets a tile with the latest night, dated, since
-  it need not be last night. The chart fetches the whole window and the list one page, so the
-  trend is never cut to a page.
+  bound and is stored as null. Upstream has no columns for any of it except the night's heart
+  rate, so HRV goes in `homelab.sleep_hrv` and heart rate in `homelab.sleep_heart_rate`
+  (one `NightlyMetric` shape, one reconcile routine over the same window as the sleep rows).
+  `heartRate.current` is also written to `resting_heart_rate`, which feeds upstream's Resting
+  HR dashboard tile. It is Eight Sleep's sleeping heart rate (43 that night, against a series
+  minimum of 41), not a clinical resting HR. At startup the full-history run fills any
+  per-night table that is still empty.
+- **The HRV and Resting HR zones are one view** (`frontend/src/features/sleepMetrics/`,
+  `NightlyMetricView` with `kind` `hrv` or `heartRate`; what differs per metric is the
+  `NIGHTLY_METRICS` entry in `metrics.ts`). Routes are `/health/hrv` and `/health/rhr`; the
+  latter replaces upstream's `HealthRestingHeartRateView`, which is left in place unused. The
+  API is `/api/v1/homelab/sleep_hrv` and `/api/v1/homelab/sleep_heart_rate`, each with
+  `/latest`. Each page charts the nightly value, the dashed 7-day average, and the usual range
+  as two faint lines. The range is drawn per night because it moves: HRV's was about
+  88–108 ms in 2022 against 65–80 ms in 2026. Below the chart is a list flagging nights
+  outside the range. The dashboard gets an HRV tile with the latest night, dated, since it
+  need not be last night. The chart fetches the whole window and the list one page, so the
+  trend is never cut to a page. Because the Resting HR page now reads only Eight Sleep's
+  table, a resting HR typed into a sleep record by hand would not appear on it (there are
+  none).
 - **The dashboard showed no Eight Sleep sleep at all** until `hl0005`'s release. Upstream's
   `/health/stats/daily` built its sleep block only when `hrv_status` was set, which only
   Garmin fills. The condition is now any sleep row (marked `homelab fork` in `health/router.py`).
@@ -314,18 +323,20 @@ notices.
   whose night is gone is deleted. Rows from another source are never deleted, rows entered by
   hand are never overwritten, a failed fetch writes nothing, and an empty answer for a window
   that holds Eight Sleep rows deletes nothing. At startup it backfills if no Eight Sleep rows
-  exist yet, and syncs the last 30 days otherwise. Since `hl0005`, "no rows" means no HRV rows,
-  so the first start after that release refills every night's HRV and resting HR.
+  exist yet, and syncs the last 30 days otherwise. Since `hl0005`, "no rows" means any per-night
+  table empty (HRV in `hl0005`, heart rate in `hl0006`), so the first start after each of those
+  releases refills that table for every night.
 - **Garmin stands aside.** When Eight Sleep is configured, upstream's Garmin health sync skips
   its sleep fetch (marked `homelab fork` in `garmin/health_utils.py`). Both write one row per
   date and the last writer would win. Weight and steps still come from Garmin.
 - **Upstream edits**: the `eight_sleep` value in the sleep `Source` enum (`health_sleep/schema.py`;
   without it upstream's read schema rejects the rows), the Garmin gate above, job
-  registration in `main.py`, the dashboard condition in `health/router.py`, and for the HRV
-  zone its route (`router/index.ts`), nav entry (`healthNav.ts`), dashboard tile
-  (`HealthDashboardView.vue`) and translation namespace (`i18n/index.ts`). The translation
-  file `sleepHrv.json` is English in every locale, because the parity test requires the file
-  to exist in each. No upstream schema; HRV is in the fork's own table. Rolling back to vanilla leaves rows whose
+  registration in `main.py`, the dashboard condition in `health/router.py`, and for the two
+  zones their routes (`router/index.ts`, including pointing `health-rhr` at the fork view),
+  the HRV nav entry (`healthNav.ts`), the HRV dashboard tile (`HealthDashboardView.vue`) and
+  the translation namespace (`i18n/index.ts`). The translation file `sleepMetrics.json` is
+  English in every locale, because the parity test requires the file to exist in each. No
+  upstream schema; both metrics are in the fork's own tables. Rolling back to vanilla leaves rows whose
   `source` upstream's enum rejects, so delete `source = 'eight_sleep'` rows before doing that.
   The frontend shows them without the Garmin icon and needs no change.
 - Testing against real data without repointing the shared dev stack: run the code in a

@@ -1,11 +1,24 @@
 {
-  "nav": "HRV",
-  "title": "HRV",
-  "subtitle": "Overnight heart-rate variability (RMSSD) from Eight Sleep, against your 7-day average and usual range.",
+  "hrv": {
+    "nav": "HRV",
+    "title": "HRV",
+    "subtitle": "Overnight heart-rate variability (RMSSD) from Eight Sleep, against your 7-day average and usual range.",
+    "chartTitle": "Nightly HRV",
+    "series": "HRV",
+    "dashboardTitle": "HRV",
+    "emptyTitle": "No HRV yet",
+    "errorTitle": "Couldn't load HRV"
+  },
+  "heartRate": {
+    "title": "Resting heart rate",
+    "subtitle": "Sleeping heart rate from Eight Sleep, against your 7-day average and usual range.",
+    "chartTitle": "Nightly heart rate",
+    "series": "Heart rate",
+    "emptyTitle": "No heart rate yet",
+    "errorTitle": "Couldn't load heart rate"
+  },
   "interval": { "label": "Time range" },
   "chart": {
-    "title": "Nightly HRV",
-    "nightly": "HRV",
     "average": "7-day average",
     "range": "Usual range"
   },
@@ -19,16 +32,13 @@
     "above": "Above usual"
   },
   "dashboard": {
-    "title": "HRV",
     "footer": "7-day avg {average}"
   },
   "empty": {
-    "title": "No HRV yet",
-    "description": "Nightly HRV appears here once the Eight Sleep sync has imported a night."
+    "description": "Nights appear here once the Eight Sleep sync has imported them."
   },
   "error": {
-    "title": "Couldn't load HRV",
-    "description": "Something went wrong fetching your HRV history.",
+    "description": "Something went wrong fetching your history.",
     "retry": "Try again"
   }
 }

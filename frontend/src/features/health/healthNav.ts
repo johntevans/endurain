@@ -40,8 +40,8 @@ export const HEALTH_ZONES: readonly HealthZone[] = [
   },
   { name: 'health-sleep', labelKey: 'health.nav.sleep', icon: Moon, implemented: true },
   { name: 'health-rhr', labelKey: 'health.nav.rhr', icon: HeartPulse, implemented: true },
-  // Homelab fork: nightly HRV from Eight Sleep (features/sleepHrv).
-  { name: 'health-hrv', labelKey: 'sleepHrv.nav', icon: Activity, implemented: true },
+  // Homelab fork: nightly HRV from Eight Sleep (features/sleepMetrics).
+  { name: 'health-hrv', labelKey: 'sleepMetrics.hrv.nav', icon: Activity, implemented: true },
   { name: 'health-steps', labelKey: 'health.nav.steps', icon: Footprints, implemented: true },
   { name: 'health-weight', labelKey: 'health.nav.weight', icon: Scale, implemented: true },
   { name: 'health-fasting', labelKey: 'health.nav.fasting', icon: Utensils, implemented: true },

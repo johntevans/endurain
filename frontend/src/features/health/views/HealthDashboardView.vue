@@ -24,9 +24,9 @@ import {
   hrvStatusKey,
   formatHealthEntryDate,
 } from '@/features/health/utils/healthFormat'
-// Homelab fork: nightly HRV tile (features/sleepHrv).
-import { useLatestSleepHrvQuery } from '@/features/sleepHrv/composables/useSleepHrv'
-import { formatHrv } from '@/features/sleepHrv/utils/sleepHrv'
+// Homelab fork: nightly HRV tile (features/sleepMetrics).
+import { useLatestNightlyMetricQuery } from '@/features/sleepMetrics/composables/useSleepMetrics'
+import { formatNightlyMetric } from '@/features/sleepMetrics/utils/sleepMetrics'
 
 /**
  * Health dashboard zone. Renders a grid of metric cards combining today's
@@ -36,7 +36,7 @@ import { formatHrv } from '@/features/sleepHrv/utils/sleepHrv'
 const { t, locale } = useI18n()
 
 const dashboardQuery = useHealthDashboardQuery()
-const latestHrvQuery = useLatestSleepHrvQuery() // homelab fork
+const latestHrvQuery = useLatestNightlyMetricQuery('hrv') // homelab fork
 const targetsQuery = useHealthTargetsQuery()
 const { data: user } = useCurrentUser()
 
@@ -145,16 +145,18 @@ const cards = computed<CardModel[]>(() => {
     // homelab fork: the latest night's HRV, dated because it need not be last night.
     {
       key: 'hrv',
-      title: t('sleepHrv.dashboard.title'),
-      value: latestHrvQuery.data.value ? formatHrv(latestHrvQuery.data.value.hrvMs) : null,
+      title: t('sleepMetrics.hrv.dashboardTitle'),
+      value: latestHrvQuery.data.value
+        ? formatNightlyMetric('hrv', latestHrvQuery.data.value.value)
+        : null,
       noDataLabel: noData,
       subtitle: latestHrvQuery.data.value
         ? formatHealthEntryDate(latestHrvQuery.data.value.date, locale.value)
         : null,
       footerText:
-        latestHrvQuery.data.value?.avg7dMs != null
-          ? t('sleepHrv.dashboard.footer', {
-              average: formatHrv(latestHrvQuery.data.value.avg7dMs),
+        latestHrvQuery.data.value?.avg7d != null
+          ? t('sleepMetrics.dashboard.footer', {
+              average: formatNightlyMetric('hrv', latestHrvQuery.data.value.avg7d),
             })
           : null,
     },
