@@ -62,11 +62,16 @@ watch_run() {
 
 if [ -z "$target" ]; then
   # A build still running on homelab is the commit the user most likely means.
+  # Deploy the watched run's own commit: re-listing "newest successful" straight
+  # after `gh run watch` returned the PREVIOUS build on 2026-10-22 (the list had
+  # not caught up), so b447c5c was redeployed instead of fbc279c.
+  sha=
   for id in $(gh run list -R "$REPO" -w "$WORKFLOW" -b homelab -L 5 \
     --json databaseId,status -q '.[] | select(.status != "completed") | .databaseId'); do
     watch_run "$id"
+    [ -n "$sha" ] || sha=$(gh run view "$id" -R "$REPO" --json headSha -q .headSha)
   done
-  sha=$(gh run list -R "$REPO" -w "$WORKFLOW" -b homelab -s success -L 1 --json headSha -q '.[0].headSha')
+  [ -n "$sha" ] || sha=$(gh run list -R "$REPO" -w "$WORKFLOW" -b homelab -s success -L 1 --json headSha -q '.[0].headSha')
   [ -n "$sha" ] || die "no successful image build on homelab"
 else
   sha=$(git -C "$ROOT" rev-parse --verify "$target^{commit}" 2>/dev/null) || die "unknown commit $target"
