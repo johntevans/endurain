@@ -37,6 +37,7 @@ import garmin.activity_utils as garmin_activity_utils
 import garmin.health_utils as garmin_health_utils
 import homelab.db_migrations as homelab_db_migrations  # homelab fork
 import homelab.eight_sleep.sync as homelab_eight_sleep_sync  # homelab fork
+import homelab.withings.sync as homelab_withings_sync  # homelab fork
 import server_settings.schema as server_settings_schema
 import server_settings.utils as server_settings_utils
 import strava.activity_utils as strava_activity_utils
@@ -205,6 +206,7 @@ async def startup_event(fastapi_app: FastAPI) -> None:
     await core_migrations.check_migrations()
     core_scheduler.start_scheduler()
     homelab_eight_sleep_sync.register_jobs()  # homelab fork: Eight Sleep sleep sync
+    homelab_withings_sync.register_jobs()  # homelab fork: Withings weight sync
 
     # Phase 2: best-effort background syncs and clean-up.
     core_logger.print_to_log_and_console("Refreshing Strava tokens on startup")

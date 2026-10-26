@@ -13,6 +13,11 @@ from homelab.withings.models import WithingsToken
 REFRESH_MARGIN = timedelta(minutes=10)
 
 
+def owns_weight(user_id: int, db: Session) -> bool:
+    """True when Withings is configured and this user has linked it; Garmin's body-composition import then stands aside."""
+    return withings_client.config() is not None and db.get(WithingsToken, user_id) is not None
+
+
 def save(user_id: int, tokens: withings_client.TokenSet, db: Session) -> None:
     """Store (or replace) a user's link."""
     row = db.get(WithingsToken, user_id)

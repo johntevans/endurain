@@ -22,6 +22,7 @@ class Source(Enum):
     """
 
     GARMIN = "garmin"
+    WITHINGS = "withings"  # homelab fork: homelab/withings
 
 
 class HealthWeightBase(BaseModel):

@@ -91,3 +91,55 @@ def exchange_code(cfg: WithingsConfig, code: str) -> TokenSet:
 def refresh(cfg: WithingsConfig, refresh_token: str) -> TokenSet:
     """New tokens from a refresh token. The returned refresh token REPLACES the old one."""
     return _request_token(cfg, {"grant_type": "refresh_token", "refresh_token": refresh_token})
+
+
+MEASURE_URL = "https://wbsapi.withings.net/measure"
+# weight kg, fat ratio %, muscle mass kg, hydration kg, bone mass kg, visceral fat index
+MEAS_TYPES = "1,6,76,77,88,170"
+MAX_PAGES = 50
+
+
+def get_measure_groups(
+    access_token: str, start: datetime | None = None, end: datetime | None = None
+) -> tuple[list[dict[str, Any]], str | None]:
+    """
+    Every measurement group (category 1 = real measurements, not goals) in the
+    window, all pages. No window = the whole history.
+
+    Returns:
+        ``(groups, timezone)``; the timezone is the account's (``America/Los_Angeles``).
+
+    Raises:
+        WithingsError on any failed call, so a failure never reads as "no weigh-ins".
+    """
+    groups: list[dict[str, Any]] = []
+    timezone: str | None = None
+    params: dict[str, Any] = {"action": "getmeas", "meastypes": MEAS_TYPES, "category": 1}
+    if start is not None:
+        params["startdate"] = int(start.timestamp())
+    if end is not None:
+        params["enddate"] = int(end.timestamp())
+    for _ in range(MAX_PAGES):
+        try:
+            response = httpx.post(
+                MEASURE_URL,
+                data=params,
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=TIMEOUT_SECONDS,
+            )
+        except httpx.HTTPError as err:
+            raise WithingsError(f"getmeas failed: {type(err).__name__}") from err
+        if response.status_code != 200:
+            raise WithingsError(f"getmeas failed with HTTP {response.status_code}")
+        payload: dict[str, Any] = response.json()
+        if payload.get("status") != 0:
+            raise WithingsError(f"getmeas refused: status {payload.get('status')} {payload.get('error', '')}".strip())
+        body = payload.get("body") or {}
+        if not isinstance(body.get("measuregrps"), list):
+            raise WithingsError("getmeas response has no 'measuregrps' list")
+        groups.extend(body["measuregrps"])
+        timezone = body.get("timezone") or timezone
+        if not body.get("more"):
+            return groups, timezone
+        params["offset"] = body.get("offset")
+    raise WithingsError(f"getmeas still paging after {MAX_PAGES} pages")

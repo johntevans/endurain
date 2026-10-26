@@ -12,6 +12,7 @@ import health.health_steps.schema as health_steps_schema
 import health.health_weight.crud as health_weight_crud
 import health.health_weight.schema as health_weight_schema
 import homelab.eight_sleep.client as homelab_eight_sleep_client  # homelab fork
+import homelab.withings.tokens as homelab_withings_tokens  # homelab fork
 import notifications.utils as notifications_utils
 import users.users.crud as users_crud
 import users.users_integrations.crud as user_integrations_crud
@@ -488,8 +489,11 @@ async def get_user_garminconnect_health_by_dates(
             )
 
             # Fetch Garmin Connect body composition for the specified date range
-            num_garminconnect_bc_processed = fetch_and_process_bc_by_dates(
-                garminconnect_client, start_date, end_date, user_id, db
+            # homelab fork: Withings owns weight once linked (one row per date, last writer wins)
+            num_garminconnect_bc_processed = (
+                0
+                if homelab_withings_tokens.owns_weight(user_id, db)
+                else fetch_and_process_bc_by_dates(garminconnect_client, start_date, end_date, user_id, db)
             )
 
             # Fetch Garmin Connect daily steps for the specified date range

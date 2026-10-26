@@ -353,10 +353,41 @@ notices.
   over `node_modules`. Run it as root, or `npm ci` cannot write that volume and `npx`
   silently fetches other tool versions.
 
-### Withings (body weight), in progress
+### Withings (body weight)
 
-`backend/app/homelab/withings/`. **Step 1, linking, is built. The weight sync is not yet.**
-Withings has an official OAuth 2.0 API, so no password is stored:
+`backend/app/homelab/withings/` makes Withings the source of body weight. Withings has an
+official OAuth 2.0 API, so no password is stored:
+
+- **The sync** (`sync.py`, `mapping.py`) mirrors the Eight Sleep one. It re-reads the last
+  30 days hourly and the full history daily, backfills at startup when no Withings rows exist,
+  and reconciles each window. A `withings` row is created or overwritten from Withings, and
+  deleted when its day no longer has a weigh-in. Hand-entered rows are never overwritten,
+  other sources are never deleted, a failed fetch writes nothing, and an empty answer for a
+  window holding Withings rows deletes nothing. It runs only when configured **and** linked.
+  An unlinked run logs `Withings sync (...) skipped: ... not linked`, which the homelab-ops
+  check treats as a failure.
+- **One row per local day: the first weigh-in** (the morning one, decided 2026-10-23). Body
+  composition comes from that same measurement group and is never mixed across groups. Of the
+  417 days to 2026-10-10, 24 have weight only, because that day's first weigh-in had no body
+  composition and a later one did. Days follow the account's timezone (`America/Los_Angeles`),
+  not UTC.
+- **Mapping**: weight (type 1) → `weight`, fat ratio (6) → `body_fat` %, muscle (76) →
+  `muscle_mass`, bone (88) → `bone_mass`, visceral fat (170) → `visceral_fat`, and hydration
+  (77, **kg**) → `body_water` as a **percentage** of weight, which is what Endurain stores.
+  Values arrive as `value * 10^unit`. BMI is left empty, so upstream's crud computes it from
+  the user's height.
+- **Skipped**: groups with `attrib` 1 ("measured, but ambiguous whose": a guest on the scale).
+  Hand entries in the Withings app (`attrib` 2) are kept.
+- **Garmin stands aside** once Withings is configured and linked: upstream's Garmin
+  body-composition import is skipped (marked `homelab fork` in `garmin/health_utils.py`), as
+  Garmin sleep is for Eight Sleep. The `withings` value in the weight `Source` enum is the
+  other upstream edit. **Rolling back to vanilla** needs `source = 'withings'` weight rows
+  deleted first, as with Eight Sleep's.
+- **Tested on real data without touching the tokens.** Copying the encrypted tokens into a
+  test database would let a refresh there spend the single-use refresh token and break
+  production's link. Instead the weigh-ins were fetched once, read-only, through production's
+  link into a temporary file, and a throwaway Postgres ran the sync with the fetch patched to
+  return them.
 
 - **Configured by** `WITHINGS_CLIENT_ID`, `WITHINGS_CLIENT_SECRET` and `WITHINGS_REDIRECT_URI`.
   The last is the callback exactly as registered in the Withings developer dashboard:
