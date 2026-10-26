@@ -43,6 +43,12 @@ class TestWeighIns:
         assert (w.weight, w.percent_fat, w.percent_hydration) == (80.0, 16.0, 60.0)
         assert (w.bone_mass, w.muscle_mass, w.visceral_fat_rating) == (3.3, 64.0, 3)
 
+    def test_visceral_fat_is_rounded_not_truncated(self):
+        group = _group("2026-10-08T13:00:00")
+        next(m for m in group["measures"] if m["type"] == 170).update(value=26, unit=-1)  # 2.6
+
+        assert garmin_push.weigh_ins([group])[0].visceral_fat_rating == 3
+
     def test_ambiguous_weigh_ins_are_not_forwarded(self):
         assert garmin_push.weigh_ins([_group("2026-10-08T13:00:00", attrib=1)]) == []
 

@@ -82,7 +82,13 @@ def weigh_ins(groups: list[dict[str, Any]]) -> list[WeighIn]:
                 percent_hydration=r2(hydration / weight * 100 if hydration is not None else None),
                 bone_mass=r2(values.get(withings_mapping.BONE_MASS)),
                 muscle_mass=r2(values.get(withings_mapping.MUSCLE_MASS)),
-                visceral_fat_rating=r2(values.get(withings_mapping.VISCERAL_FAT)),
+                # Garmin keeps a whole-number rating and the FIT field is a uint8, which
+                # truncates: Withings' 2.6 arrived as 2 on 2026-10-26 until this rounding.
+                visceral_fat_rating=(
+                    round(values[withings_mapping.VISCERAL_FAT])
+                    if values.get(withings_mapping.VISCERAL_FAT) is not None
+                    else None
+                ),
             )
         )
     return sorted(out, key=lambda w: w.at)
