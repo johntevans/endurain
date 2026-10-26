@@ -32,6 +32,7 @@ import health.health_weight.schema as health_weight_schema
 import users.users.models as users_models
 from core.database import SessionLocal
 from homelab.withings import client as withings_client
+from homelab.withings import garmin_push as withings_garmin_push
 from homelab.withings import mapping as withings_mapping
 from homelab.withings import tokens as withings_tokens
 from homelab.withings.models import WithingsToken
@@ -150,6 +151,21 @@ def _run(label: str, history: bool) -> None:
         )
     except Exception as err:
         core_logger.print_to_log(f"Withings sync ({label}) failed: {type(err).__name__}: {err}", "error")
+        return
+    if withings_garmin_push.enabled():
+        _forward_to_garmin(label, user_id, groups, window_start, window_end)
+
+
+def _forward_to_garmin(label: str, user_id: int, groups: list, window_start: date, window_end: date) -> None:
+    # Separate from the weight sync: a Garmin failure never fails it, and the
+    # next run retries, because Garmin itself is the record of what is there.
+    try:
+        with SessionLocal() as db:
+            counts, _ = withings_garmin_push.push(user_id, groups, window_start, window_end, db)
+        summary = ", ".join(f"{n} {k}" for k, n in sorted(counts.items())) or "nothing to do"
+        core_logger.print_to_log(f"Withings to Garmin ({label}) {window_start}..{window_end}: {summary}")
+    except Exception as err:
+        core_logger.print_to_log(f"Withings to Garmin ({label}) failed: {type(err).__name__}: {err}", "error")
 
 
 def sync_recent() -> None:

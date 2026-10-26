@@ -7,6 +7,8 @@ In the backend container, from ``/app/backend``::
                                                         # the browser's address to be pasted back (run with -it)
     python -m homelab.withings.cli status [--user-id N] # linked? token expiry? (never prints a token)
     python -m homelab.withings.cli refresh [--user-id N] # force a refresh now, to prove it works
+    python -m homelab.withings.cli garmin-push [--dry-run] [--limit N] [--since YYYY-MM-DD]
+                                                         # forward the weigh-ins Garmin lacks
 
 ``--user-id`` defaults to the only user when there is exactly one.
 """
@@ -14,7 +16,7 @@ In the backend container, from ``/app/backend``::
 import argparse
 import pathlib
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from importlib import import_module
 
 from sqlalchemy import select
@@ -22,6 +24,7 @@ from sqlalchemy import select
 import users.users.models as users_models
 from core.database import SessionLocal
 from homelab.withings import client as withings_client
+from homelab.withings import garmin_push as withings_garmin_push
 from homelab.withings import link as withings_link
 from homelab.withings import tokens as withings_tokens
 from homelab.withings.models import WithingsToken
@@ -72,10 +75,34 @@ def _link_by_paste(cfg, user_id: int, state: str, url: str, db) -> int:
     return 0
 
 
+def _garmin_push(user_id: int, args, db) -> int:
+    """Forward the Withings weigh-ins Garmin lacks (whole history unless --since)."""
+    token = withings_tokens.access_token(user_id, db)
+    if token is None:
+        print(f"user {user_id}: Withings not linked")  # noqa: T201 - CLI output
+        return 1
+    groups, _ = withings_client.get_measure_groups(token)
+    start = args.since or date(2000, 1, 1)
+    counts, todo = withings_garmin_push.push(
+        user_id, groups, start, date.today(), db, limit=args.limit, dry_run=args.dry_run
+    )
+    verb = "would upload" if args.dry_run else "uploaded"
+    for w in todo:
+        print(  # noqa: T201 - CLI output
+            f"  {verb} {w.at:%Y-%m-%d %H:%M} UTC  {w.weight:.2f} kg"
+            f"  fat {w.percent_fat if w.percent_fat is not None else '-'}%"
+        )
+    print(", ".join(f"{n} {k}" for k, n in sorted(counts.items())) or "nothing to do")  # noqa: T201 - CLI output
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m homelab.withings.cli")
-    parser.add_argument("command", choices=["link", "status", "refresh"])
+    parser.add_argument("command", choices=["link", "status", "refresh", "garmin-push"])
     parser.add_argument("--user-id", type=int)
+    parser.add_argument("--dry-run", action="store_true", help="garmin-push: list, upload nothing")
+    parser.add_argument("--limit", type=int, help="garmin-push: upload at most N (oldest first)")
+    parser.add_argument("--since", type=date.fromisoformat, help="garmin-push: only weigh-ins from this date")
     args = parser.parse_args(argv)
     _import_all_models()
     cfg = withings_client.config()
@@ -92,6 +119,8 @@ def main(argv: list[str] | None = None) -> int:
                 print(url)  # noqa: T201 - CLI output
                 return 0
             return _link_by_paste(cfg, user_id, state, url, db)
+        if args.command == "garmin-push":
+            return _garmin_push(user_id, args, db)
         row = db.get(WithingsToken, user_id)
         if row is None:
             print(f"user {user_id}: not linked")  # noqa: T201 - CLI output

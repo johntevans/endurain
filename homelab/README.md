@@ -383,6 +383,21 @@ official OAuth 2.0 API, so no password is stored:
   Garmin sleep is for Eight Sleep. The `withings` value in the weight `Source` enum is the
   other upstream edit. **Rolling back to vanilla** needs `source = 'withings'` weight rows
   deleted first, as with Eight Sleep's.
+- **Forwarding to Garmin Connect** (`garmin_push.py`, on with `WITHINGS_GARMIN_PUSH=true`).
+  After each Withings sync, the window's weigh-ins Garmin lacks are uploaded as one FIT weight
+  file through the Garmin session Endurain already holds, so there is no second login. **Garmin
+  is the record of what is there**: a Withings weigh-in counts as present when Garmin holds one
+  within 120 s and 0.05 kg. On 2026-10-26 Garmin held 364 of the 434 at the identical second,
+  from an earlier forwarder that stopped in January 2026. The other 70 were missing: 15 from
+  Oct–Nov 2024 and 55 since 2026-01. Nothing is stored locally and nothing is deleted from
+  Garmin. Garmin-only weigh-ins (6 manual entries from 2021–2024) are left alone. It forwards
+  **every** weigh-in, not only each day's first: weight, BMI (from the Endurain height), body
+  fat %, water %, bone, muscle and visceral fat. A forwarding failure is logged as
+  `Withings to Garmin (...) failed` and never fails the weight sync; the next run retries.
+  `cli garmin-push --dry-run | --limit N | --since YYYY-MM-DD` does it by hand.
+  **Timestamps must be Unix seconds**: garminconnect's `FitEncoder.timestamp` converts a
+  datetime with `time.mktime`, which ignores tzinfo and reads the container's local time, so
+  a UTC datetime lands 7–8 h off. A test runs the encoder under three timezones.
 - **Tested on real data without touching the tokens.** Copying the encrypted tokens into a
   test database would let a refresh there spend the single-use refresh token and break
   production's link. Instead the weigh-ins were fetched once, read-only, through production's
