@@ -366,6 +366,12 @@ Withings has an official OAuth 2.0 API, so no password is stored:
   which exchanges the code at once, because **a Withings authorization code lasts 30 s**. It
   stores both tokens Fernet-encrypted in `homelab.withings_tokens`. `cli status` shows the
   link without printing a token. `cli refresh` forces a refresh to prove one works.
+- **When the registered callback is not Endurain's**, `cli link` waits for the address to be
+  pasted back instead. The January app (`Withings-To-Garmin`) is registered with
+  `http://localhost:8765/callback`, and the dashboard marks its callback **Restricted**. After
+  Allow, the browser fails to open that address, but the code is in the address bar. Run it
+  interactively (`docker exec -it endurain python -m homelab.withings.cli link`), approve, and
+  paste within 30 s. It checks the `state` matches the link it just issued.
 - **The `state` is the authorisation.** The callback has to be unauthenticated (it is a
   browser redirect from Withings), so `link.py` issues a Fernet token over
   `withings-link:<user_id>` with a 10-minute TTL. It cannot be forged without `FERNET_KEY`,

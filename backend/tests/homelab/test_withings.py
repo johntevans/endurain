@@ -219,3 +219,67 @@ class TestCallback:
 
         assert response.status_code == 502
         assert db.get(WithingsToken, USER) is None
+
+
+class TestPasteLink:
+    def test_only_endurains_own_callback_skips_the_paste_step(self):
+        assert withings_link.is_own_callback(CFG.redirect_uri)
+        assert not withings_link.is_own_callback("http://localhost:8765/callback")
+
+    def test_the_whole_address_or_the_bare_code_is_accepted(self):
+        state = withings_link.make_state(USER)
+        url = f"http://localhost:8765/callback?code=abc123&state={state}"
+        assert withings_link.code_from_pasted(url, state) == ("abc123", None)
+        assert withings_link.code_from_pasted("  abc123 \n", state) == ("abc123", None)
+
+    @pytest.mark.parametrize(
+        ("pasted", "reason"),
+        [
+            ("", "nothing was pasted"),
+            ("http://localhost:8765/callback?error=access_denied&state={state}", "access_denied"),
+            ("http://localhost:8765/callback?code=abc&state=older", "different"),
+            ("http://localhost:8765/callback?state={state}", "no code"),
+            ("not a code", "does not look"),
+        ],
+    )
+    def test_unusable_pastes_are_refused(self, pasted, reason):
+        state = withings_link.make_state(USER)
+        code, problem = withings_link.code_from_pasted(pasted.format(state=state), state)
+        assert code is None
+        assert reason in problem
+
+    def test_link_exchanges_the_pasted_code_and_stores_the_tokens(self, db, monkeypatch, capsys):
+        from homelab.withings import cli
+
+        local = withings_client.WithingsConfig("cid", "csecret", "http://localhost:8765/callback")
+        monkeypatch.setattr(withings_client, "config", lambda: local)
+        monkeypatch.setattr(cli, "SessionLocal", lambda: db)
+        monkeypatch.setattr(cli, "_import_all_models", lambda: None)
+        monkeypatch.setattr(cli, "_user_id", lambda _db, _given: USER)
+
+        def paste_back(_prompt):
+            printed = capsys.readouterr().out
+            state = parse_qs(urlparse(printed.split("   ", 1)[1].split()[0]).query)["state"][0]
+            return f"http://localhost:8765/callback?code=c0de&state={state}"
+
+        monkeypatch.setattr("builtins.input", paste_back)
+        with patch.object(withings_client, "exchange_code", return_value=_tokens()) as exchange:
+            assert cli.main(["link"]) == 0
+
+        assert exchange.call_args.args == (local, "c0de")
+        assert db.get(WithingsToken, USER) is not None
+        assert "acc-1" not in capsys.readouterr().out
+
+    def test_a_refused_code_links_nothing(self, db, monkeypatch, capsys):
+        from homelab.withings import cli
+
+        local = withings_client.WithingsConfig("cid", "csecret", "http://localhost:8765/callback")
+        monkeypatch.setattr(withings_client, "config", lambda: local)
+        monkeypatch.setattr(cli, "SessionLocal", lambda: db)
+        monkeypatch.setattr(cli, "_import_all_models", lambda: None)
+        monkeypatch.setattr(cli, "_user_id", lambda _db, _given: USER)
+        monkeypatch.setattr("builtins.input", lambda _prompt: "c0de")
+        with patch.object(withings_client, "exchange_code", side_effect=withings_client.WithingsError("status 503")):
+            assert cli.main(["link"]) == 1
+
+        assert db.get(WithingsToken, USER) is None

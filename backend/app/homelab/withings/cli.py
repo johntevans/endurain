@@ -2,7 +2,9 @@
 
 In the backend container, from ``/app/backend``::
 
-    python -m homelab.withings.cli link [--user-id N]   # prints the approval URL (valid 10 min)
+    python -m homelab.withings.cli link [--user-id N]   # prints the approval URL (valid 10 min); when the
+                                                        # registered callback is not Endurain's, waits for
+                                                        # the browser's address to be pasted back (run with -it)
     python -m homelab.withings.cli status [--user-id N] # linked? token expiry? (never prints a token)
     python -m homelab.withings.cli refresh [--user-id N] # force a refresh now, to prove it works
 
@@ -42,6 +44,34 @@ def _user_id(db, given: int | None) -> int:
     return ids[0]
 
 
+def _link_by_paste(cfg, user_id: int, state: str, url: str, db) -> int:
+    """Link through a callback Endurain does not serve: the owner pastes the address back."""
+    print(  # noqa: T201 - CLI output
+        "1. Open this link and sign in, but do NOT click Allow until step 2 is ready:\n"
+        f"   {url}\n"
+        f"2. Click Allow. Your browser then fails to open {cfg.redirect_uri}: that is expected.\n"
+        "3. Copy the WHOLE address from the browser's address bar and paste it below.\n"
+        "   Withings codes expire 30 seconds after Allow, so paste straight away."
+    )
+    try:
+        pasted = input("address> ")
+    except EOFError:
+        print("No input; nothing was changed.")  # noqa: T201 - CLI output
+        return 1
+    code, problem = withings_link.code_from_pasted(pasted, state)
+    if problem:
+        print(f"Not linked: {problem}. Nothing was changed; run link again.")  # noqa: T201 - CLI output
+        return 1
+    try:
+        tokens = withings_client.exchange_code(cfg, code)
+    except withings_client.WithingsError as err:
+        print(f"Not linked: Withings refused the code ({err}). It may have expired; run link again.")  # noqa: T201 - CLI output
+        return 1
+    withings_tokens.save(user_id, tokens, db)
+    print(f"Linked: Endurain user {user_id} -> Withings user {tokens.withings_userid}, scope {tokens.scope}.")  # noqa: T201 - CLI output
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m homelab.withings.cli")
     parser.add_argument("command", choices=["link", "status", "refresh"])
@@ -55,9 +85,13 @@ def main(argv: list[str] | None = None) -> int:
             if cfg is None:
                 print("Withings is not configured: set WITHINGS_CLIENT_ID, _SECRET and _REDIRECT_URI.")  # noqa: T201 - CLI output
                 return 1
-            print("Open this within 10 minutes, approve, and the callback finishes the link:")  # noqa: T201 - CLI output
-            print(withings_client.authorize_url(cfg, withings_link.make_state(user_id)))  # noqa: T201 - CLI output
-            return 0
+            state = withings_link.make_state(user_id)
+            url = withings_client.authorize_url(cfg, state)
+            if withings_link.is_own_callback(cfg.redirect_uri):
+                print("Open this within 10 minutes, approve, and the callback finishes the link:")  # noqa: T201 - CLI output
+                print(url)  # noqa: T201 - CLI output
+                return 0
+            return _link_by_paste(cfg, user_id, state, url, db)
         row = db.get(WithingsToken, user_id)
         if row is None:
             print(f"user {user_id}: not linked")  # noqa: T201 - CLI output
