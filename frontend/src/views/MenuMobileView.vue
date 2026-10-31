@@ -4,8 +4,8 @@ import { RouterLink, useRouter, type RouteLocationRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   Activity,
+  Bike, // homelab fork: gear
   Calendar,
-  CalendarRange, // homelab fork: training log
   TrendingUp, // homelab fork: fitness
   LogOut,
   Search,
@@ -87,15 +87,6 @@ async function signOut(): Promise<void> {
           <Calendar class="size-4" />
           <span>{{ t('nav.summary') }}</span>
         </RouterLink>
-        <!-- homelab fork: training log -->
-        <hr class="border-border" />
-        <RouterLink
-          :to="{ name: 'training-log' }"
-          class="flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent hover:text-accent-foreground"
-        >
-          <CalendarRange class="size-4" />
-          <span>{{ t('trainingLog.nav') }}</span>
-        </RouterLink>
         <!-- homelab fork: fitness -->
         <hr class="border-border" />
         <RouterLink
@@ -135,6 +126,15 @@ async function signOut(): Promise<void> {
         >
           <User class="size-4" />
           <span>{{ t('nav.profile') }}</span>
+        </RouterLink>
+        <!-- homelab fork: Gear moved here from the bottom nav -->
+        <hr class="border-border" />
+        <RouterLink
+          :to="{ name: 'gears' }"
+          class="flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent hover:text-accent-foreground"
+        >
+          <Bike class="size-4" />
+          <span>{{ t('nav.gear') }}</span>
         </RouterLink>
       </Card>
 

@@ -2,7 +2,6 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Activity,
-  Bike,
   Calendar,
   CalendarRange, // homelab fork: training log
   TrendingUp, // homelab fork: fitness
@@ -51,11 +50,11 @@ export function useNavigation() {
             children: [
               { name: 'activities', label: t('nav.activitiesList'), icon: List },
               { name: 'summary', label: t('nav.summary'), icon: Calendar },
-              { name: 'training-log', label: t('trainingLog.nav'), icon: CalendarRange }, // homelab fork
               { name: 'fitness', label: t('trainingLoad.fitness.nav'), icon: TrendingUp }, // homelab fork
             ],
           },
-          { name: 'gears', label: t('nav.gear'), icon: Bike },
+          // homelab fork: the training log takes Gear's slot; Gear is in the user menu
+          { name: 'training-log', label: t('trainingLog.nav'), icon: CalendarRange },
           { name: 'health', label: t('nav.health'), icon: Heart },
           { name: 'search', label: t('nav.search'), icon: Search },
         ]

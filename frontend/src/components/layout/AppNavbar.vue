@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { RouterLink, useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ChevronDown, LogOut, Settings } from '@lucide/vue'
+import { Bike, ChevronDown, LogOut, Settings } from '@lucide/vue'
 
 import LocaleSwitcher from '@/components/LocaleSwitcher.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
@@ -154,6 +154,13 @@ async function signOut(): Promise<void> {
                   size-class="size-4"
                 />
                 <span>{{ t('nav.profile') }}</span>
+              </RouterLink>
+            </DropdownMenuItem>
+            <!-- homelab fork: Gear moved here from the primary nav -->
+            <DropdownMenuItem as-child>
+              <RouterLink :to="{ name: 'gears' }">
+                <Bike class="size-4" />
+                <span>{{ t('nav.gear') }}</span>
               </RouterLink>
             </DropdownMenuItem>
             <DropdownMenuItem as-child>
