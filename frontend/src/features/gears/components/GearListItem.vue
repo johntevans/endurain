@@ -7,6 +7,7 @@ import type { Gear } from '@/features/gears/types'
 
 import GearTypeIcon from '@/features/gears/components/GearTypeIcon.vue'
 import GearBadges from '@/features/gears/components/GearBadges.vue'
+import GearMileage from '@/features/gearMileage/components/GearMileage.vue' // homelab fork
 import { Button } from '@/components/ui/button'
 import { presentGearType } from '@/features/gears/utils/gearType'
 
@@ -35,6 +36,7 @@ const typeLabel = computed(() => t(presentGearType(props.gear.gearType).labelKey
         </RouterLink>
         <div class="flex items-center gap-2">
           <p class="truncate text-hint">{{ typeLabel }}</p>
+          <GearMileage :gear="gear" />
           <GearBadges :gear="gear" />
         </div>
       </div>

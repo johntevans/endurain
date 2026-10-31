@@ -2687,6 +2687,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/homelab/gear_mileage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Gear Mileage
+         * @description Total distance of each of the requester's gears.
+         */
+        get: operations["read_gear_mileage_api_v1_homelab_gear_mileage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/homelab/lap_intensity": {
         parameters: {
             query?: never;
@@ -6836,6 +6856,22 @@ export interface components {
              * @description Foreign key to user
              */
             user_id: number;
+        };
+        /**
+         * GearMileageRead
+         * @description One gear's total distance.
+         */
+        GearMileageRead: {
+            /**
+             * Gear Id
+             * @description Gear ID
+             */
+            gear_id: number;
+            /**
+             * Total Distance
+             * @description Meters: its activities plus its initial distance, as on the gear page
+             */
+            total_distance: number;
         };
         /**
          * GearRead
@@ -15562,6 +15598,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_gear_mileage_api_v1_homelab_gear_mileage_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GearMileageRead"][];
                 };
             };
         };

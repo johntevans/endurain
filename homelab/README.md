@@ -16,7 +16,8 @@ Everything the fork adds lives under `homelab/`, in `backend/app/homelab/` (fork
 and its database migrations; the image only ships `backend/`), in
 `frontend/src/features/activityTags/`, `frontend/src/features/trainingLog/`,
 `frontend/src/features/lapIntensity/` and `frontend/src/features/trainingLoad/` and their
-`activityTags.json` / `trainingLog.json` / `lapIntensity.json` / `trainingLoad.json` locale files, in
+`activityTags.json` / `trainingLog.json` / `lapIntensity.json` / `trainingLoad.json` locale files,
+in `frontend/src/features/gearMileage/`, in
 `frontend/vite.config.homelab.ts`, in `backend/app/.gitignore`, in
 `.github/workflows/homelab-image.yml` and in `CLAUDE.md`. Keep it that way where possible:
 **a new file never conflicts with an upstream merge; an edit to an upstream file can.** The
@@ -432,6 +433,17 @@ official OAuth 2.0 API, so no password is stored:
   refresh keeps the old row, and the fix is `cli link` again.
 - Tried before release on a throwaway Postgres copy of the dev DB, through `main.app`
   (migration, callback, encrypted storage, row-locked refresh, CLI), as for `hl0005`.
+
+### Gear mileage
+
+Each shoe's row on the gear list shows its total distance, so shoes due for retirement show
+without opening each one. Upstream's list endpoint has no totals and its detail endpoint totals
+one gear at a time, so `GET /api/v1/homelab/gear_mileage` (`backend/app/homelab/gear_mileage/`)
+sums every gear in one query: its activities' distance, hidden ones included, plus
+`initial_kms`, the same sum as the detail page. Nothing is stored. The one upstream frontend edit
+is the `GearMileage` row in `GearListItem.vue`. It sits on the row's second line because a
+right-hand column left about 12 characters of nickname on a phone. The list stays in
+upstream's nickname order.
 
 ## Dev stack
 
