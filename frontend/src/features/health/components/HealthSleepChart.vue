@@ -8,6 +8,7 @@ import type { SleepEntry } from '@/features/health/types'
 import { themeColor } from '@/lib/themeColor'
 import HealthChartCard from '@/features/health/components/HealthChartCard.vue'
 import { useHealthMetricChart } from '@/features/health/composables/useHealthMetricChart'
+import { healthChartKind } from '@/features/healthCharts/utils/chartKind'
 import { formatHealthEntryDate, formatHoursMinutes } from '@/features/health/utils/healthFormat'
 
 const props = defineProps<{
@@ -55,9 +56,12 @@ const chartRender = computed<ChartRenderOptions>(() => {
     })
   }
   return {
-    kind: 'bar',
+    kind: healthChartKind(labels.length), // homelab fork
     series,
     labels,
+    // homelab fork: a window can hold years of records.
+    xMaxTicks: 6,
+    hoverIndex: true,
     valueFormat: (value) => formatHoursMinutes(value * 3600),
   }
 })

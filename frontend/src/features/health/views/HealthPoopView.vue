@@ -24,6 +24,7 @@ import {
   useHealthTargetsQuery,
   usePoopEntriesQuery,
 } from '@/features/health/composables/useHealth'
+import { usePoopChartQuery } from '@/features/healthCharts/composables/useHealthChartWindow'
 
 const { t } = useI18n()
 const toasts = useToasts()
@@ -48,6 +49,9 @@ const targetsQuery = useHealthTargetsQuery()
 const targets = computed(() => targetsQuery.data.value ?? null)
 
 const listQuery = usePoopEntriesQuery(page, recordsPerPage, interval)
+// homelab fork: the chart plots the whole window, not the list's page.
+const chartQuery = usePoopChartQuery(interval)
+const chartEntries = computed(() => chartQuery.data.value?.records ?? [])
 
 /** Poop entries on the current page (newest first). */
 const entries = computed(() => listQuery.data.value?.records ?? [])
@@ -66,9 +70,9 @@ const isEmpty = computed(() => !isPending.value && !isError.value && entries.val
 const showChart = computed(
   () =>
     chart.isAvailable &&
-    !isPending.value &&
-    !isError.value &&
-    entries.value.some((entry) => entry.dateTime !== null),
+    !chartQuery.isPending.value &&
+    !chartQuery.isError.value &&
+    chartEntries.value.some((entry) => entry.dateTime !== null),
 )
 
 // Changing the interval changes the result set, so restart at the first page.
@@ -158,7 +162,7 @@ function confirmDelete(): void {
 
     <HealthPoopChart
       v-if="showChart"
-      :entries="entries"
+      :entries="chartEntries"
       :target-count="targets?.poopCount ?? null"
     />
 

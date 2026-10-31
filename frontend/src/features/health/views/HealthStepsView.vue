@@ -24,6 +24,7 @@ import {
   useHealthTargetsQuery,
   useStepsEntriesQuery,
 } from '@/features/health/composables/useHealth'
+import { useStepsChartQuery } from '@/features/healthCharts/composables/useHealthChartWindow'
 
 const { t } = useI18n()
 const toasts = useToasts()
@@ -49,6 +50,9 @@ const targets = computed(() => targetsQuery.data.value ?? null)
 const targetSteps = computed(() => targets.value?.steps ?? null)
 
 const listQuery = useStepsEntriesQuery(page, recordsPerPage, interval)
+// homelab fork: the chart plots the whole window, not the list's page.
+const chartQuery = useStepsChartQuery(interval)
+const chartEntries = computed(() => chartQuery.data.value?.records ?? [])
 
 /** Steps entries on the current page (newest first). */
 const entries = computed(() => listQuery.data.value?.records ?? [])
@@ -67,9 +71,9 @@ const isEmpty = computed(() => !isPending.value && !isError.value && entries.val
 const showChart = computed(
   () =>
     chart.isAvailable &&
-    !isPending.value &&
-    !isError.value &&
-    entries.value.some((entry) => entry.steps !== null),
+    !chartQuery.isPending.value &&
+    !chartQuery.isError.value &&
+    chartEntries.value.some((entry) => entry.steps !== null),
 )
 
 // Changing the interval changes the result set, so restart at the first page.
@@ -157,7 +161,7 @@ function confirmDelete(): void {
       </div>
     </div>
 
-    <HealthStepsChart v-if="showChart" :entries="entries" :target-steps="targetSteps" />
+    <HealthStepsChart v-if="showChart" :entries="chartEntries" :target-steps="targetSteps" />
 
     <ListPanel
       v-model:page="page"

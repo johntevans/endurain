@@ -10,6 +10,7 @@ import { themeColor } from '@/lib/themeColor'
 import { mlToFlOz } from '@/utils/units'
 import HealthChartCard from '@/features/health/components/HealthChartCard.vue'
 import { useHealthMetricChart } from '@/features/health/composables/useHealthMetricChart'
+import { healthChartKind } from '@/features/healthCharts/utils/chartKind'
 import { formatHealthEntryDate } from '@/features/health/utils/healthFormat'
 
 const props = defineProps<{
@@ -70,9 +71,12 @@ const chartRender = computed<ChartRenderOptions>(() => {
     })
   }
   return {
-    kind: 'bar',
+    kind: healthChartKind(labels.length), // homelab fork
     series,
     labels,
+    // homelab fork: a window can hold years of records.
+    xMaxTicks: 6,
+    hoverIndex: true,
     valueFormat: (value) =>
       `${isImperial.value ? value.toFixed(1) : Math.round(value)} ${unitLabel.value}`,
   }

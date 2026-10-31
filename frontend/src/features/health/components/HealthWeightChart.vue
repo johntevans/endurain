@@ -67,6 +67,9 @@ const chartRender = computed<ChartRenderOptions>(() => {
     kind: 'line',
     series,
     labels,
+    // homelab fork: a window can hold years of records.
+    xMaxTicks: 6,
+    hoverIndex: true,
     valueFormat: (value) => `${value.toFixed(1)} ${unitLabel.value}`,
   }
 })

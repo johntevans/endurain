@@ -17,7 +17,7 @@ and its database migrations; the image only ships `backend/`), in
 `frontend/src/features/activityTags/`, `frontend/src/features/trainingLog/`,
 `frontend/src/features/lapIntensity/` and `frontend/src/features/trainingLoad/` and their
 `activityTags.json` / `trainingLog.json` / `lapIntensity.json` / `trainingLoad.json` locale files,
-in `frontend/src/features/gearMileage/`, in
+in `frontend/src/features/gearMileage/` and `frontend/src/features/healthCharts/`, in
 `frontend/vite.config.homelab.ts`, in `backend/app/.gitignore`, in
 `.github/workflows/homelab-image.yml` and in `CLAUDE.md`. Keep it that way where possible:
 **a new file never conflicts with an upstream merge; an edit to an upstream file can.** The
@@ -444,6 +444,26 @@ sums every gear in one query: its activities' distance, hidden ones included, pl
 is the `GearMileage` row in `GearListItem.vue`. It sits on the row's second line because a
 right-hand column left about 12 characters of nickname on a phone. The list stays in
 upstream's nickname order.
+
+### Health charts
+
+Upstream's Weight, Sleep, Steps, Water and Bowel zones plot the list's current page, so with
+`num_records_per_page` at 25 "Last year" and "All time" showed only the newest 25 records, and
+paging the list moved the chart. The fork's `useHealthChartWindow.ts` adds a second query per
+zone that omits pagination, which the backend answers with the whole window, as the HRV and
+Resting HR zones already did. The list stays paged. Upstream edits, all marked `homelab fork`:
+optional `page` and `numRecords` in `health/services/health.ts`, the chart query in each
+`Health*View.vue`, and the chart options in each `Health*Chart.vue`.
+
+- **Bars become a line past 100 records** (`healthChartKind`). At 1,400 nights a bar is under a
+  pixel wide and the chart fades into stripes. Hover shows the record at the pointer's x
+  position, and the x-axis has at most six labels.
+- **All-time sleep is about 5.6 MB uncompressed**, because each record carries its sleep stages
+  and the chart reads only the total. It took 130–350 ms from the backend on a local copy in
+  October 2026, and only when that window is chosen. nginx does not gzip JSON (`gzip_types` is
+  commented out in homelab-ops), so if this ever feels slow, enabling that is the first fix.
+- **The x-axis is categorical**, here and on the HRV and Resting HR charts: records sit evenly
+  spaced, so a stretch with no records takes no width and the tick dates are unevenly apart.
 
 ## Dev stack
 

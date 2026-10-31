@@ -24,6 +24,7 @@ import {
   useHealthTargetsQuery,
   useSleepEntriesQuery,
 } from '@/features/health/composables/useHealth'
+import { useSleepChartQuery } from '@/features/healthCharts/composables/useHealthChartWindow'
 
 const { t } = useI18n()
 const toasts = useToasts()
@@ -49,6 +50,9 @@ const targets = computed(() => targetsQuery.data.value ?? null)
 const targetSeconds = computed(() => targets.value?.sleepSeconds ?? null)
 
 const listQuery = useSleepEntriesQuery(page, recordsPerPage, interval)
+// homelab fork: the chart plots the whole window, not the list's page.
+const chartQuery = useSleepChartQuery(interval)
+const chartEntries = computed(() => chartQuery.data.value?.records ?? [])
 
 /** Sleep entries on the current page (newest first). */
 const entries = computed(() => listQuery.data.value?.records ?? [])
@@ -67,9 +71,9 @@ const isEmpty = computed(() => !isPending.value && !isError.value && entries.val
 const showChart = computed(
   () =>
     chart.isAvailable &&
-    !isPending.value &&
-    !isError.value &&
-    entries.value.some((entry) => entry.totalSleepSeconds !== null),
+    !chartQuery.isPending.value &&
+    !chartQuery.isError.value &&
+    chartEntries.value.some((entry) => entry.totalSleepSeconds !== null),
 )
 
 // Changing the interval changes the result set, so restart at the first page.
@@ -157,7 +161,7 @@ function confirmDelete(): void {
       </div>
     </div>
 
-    <HealthSleepChart v-if="showChart" :entries="entries" :target-seconds="targetSeconds" />
+    <HealthSleepChart v-if="showChart" :entries="chartEntries" :target-seconds="targetSeconds" />
 
     <ListPanel
       v-model:page="page"

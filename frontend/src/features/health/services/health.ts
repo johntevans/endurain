@@ -109,10 +109,10 @@ export async function fetchHealthDashboard(signal?: AbortSignal): Promise<Health
 
 /** Shared page/filter shape for paginated health-history endpoints. */
 interface HealthHistoryParams {
-  /** 1-based page number. */
-  page: number
+  /** 1-based page number; homelab fork: omit with `numRecords` for the whole window. */
+  page?: number
   /** Page size (records per page). */
-  numRecords: number
+  numRecords?: number
   /** Time window to filter the history to. */
   interval: string
 }
@@ -139,21 +139,23 @@ interface HealthHistoryPage<Entry> {
  * per zone (e.g. {@link HealthInterval}).
  */
 export interface HealthListParams<Interval extends string = HealthInterval> {
-  /** 1-based page number. */
-  page: number
+  /** 1-based page number; homelab fork: omit with `numRecords` for the whole window. */
+  page?: number
   /** Page size (records per page). */
-  numRecords: number
+  numRecords?: number
   /** Time window to filter the history to. */
   interval: Interval
 }
 
 /** Builds the query string for a paginated health-history endpoint. */
 function buildHealthHistoryPath(resource: string, params: HealthHistoryParams): string {
-  const search = new URLSearchParams({
-    page_number: String(params.page),
-    num_records: String(params.numRecords),
-    interval: params.interval,
-  })
+  const search = new URLSearchParams()
+  // homelab fork: the backend returns the whole window when these are absent.
+  if (params.page !== undefined && params.numRecords !== undefined) {
+    search.set('page_number', String(params.page))
+    search.set('num_records', String(params.numRecords))
+  }
+  search.set('interval', params.interval)
   return `/health/${resource}?${search.toString()}`
 }
 
