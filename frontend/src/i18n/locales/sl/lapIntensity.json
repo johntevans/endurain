@@ -20,5 +20,10 @@
     "overrideDefault": "Changed from the default (Active)"
   },
   "reset": "Reset to the recorded intensity",
-  "saveError": "Couldn't save the lap intensity."
+  "saveError": "Couldn't save the lap intensity.",
+  "intervals": {
+    "interval": "Int",
+    "cumulativeTime": "Cumulative time",
+    "total": "Total"
+  }
 }

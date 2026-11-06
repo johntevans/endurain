@@ -22,6 +22,7 @@ import ActivityMetricsGrid from '@/features/activities/components/ActivityMetric
 import ActivityPrivacyAlerts from '@/features/activities/components/ActivityPrivacyAlerts.vue'
 import ActivityStreamChart from '@/features/activities/components/ActivityStreamChart.vue'
 import ActivityWorkoutSets from '@/features/activities/components/ActivityWorkoutSets.vue'
+import WorkoutIntervalsTable from '@/features/lapIntensity/components/WorkoutIntervalsTable.vue' // homelab fork
 import {
   useActivityExerciseTitlesQuery,
   useActivityLapsQuery,
@@ -40,6 +41,7 @@ import {
 } from '@/features/activities/utils/privacy'
 import { extractHrZones } from '@/features/activities/utils/hrZones'
 import { buildStreamCharts, extractTrackPoints } from '@/features/activities/utils/streams'
+import { hasWorkIntervals } from '@/features/lapIntensity/utils/intervals' // homelab fork
 
 const route = useRoute()
 const { t } = useI18n()
@@ -130,6 +132,15 @@ const showWorkout = computed(
     !!activity.value &&
     canViewField(activity.value, 'hideWorkoutSetsSteps', currentUserId.value) &&
     hasWorkoutData.value,
+)
+
+// homelab fork: a structured session's Workout tab shows its work intervals,
+// Garmin-style, in place of the planned steps.
+const showIntervals = computed(
+  () =>
+    showLaps.value &&
+    !!activity.value &&
+    hasWorkIntervals(laps.value ?? [], activity.value.activityType),
 )
 
 // Active tab when both laps and workout sets are available (v1's pill switch).
@@ -319,7 +330,7 @@ const notFound = computed(() => !isPending.value && !isError.value && activity.v
 
       <Card v-if="showLaps || showWorkout" class="flex flex-col gap-3">
         <!-- Both available → switch between Laps and Sets (mirrors v1's pills). -->
-        <Tabs v-if="showLaps && showWorkout" v-model="splitsTab">
+        <Tabs v-if="showLaps && (showWorkout || showIntervals)" v-model="splitsTab">
           <TabsList>
             <TabsTrigger value="laps">{{ t('activities.laps.title') }}</TabsTrigger>
             <TabsTrigger value="sets">{{ t('activities.workout.title') }}</TabsTrigger>
@@ -328,7 +339,15 @@ const notFound = computed(() => !isPending.value && !isError.value && activity.v
             <ActivityLapsTable :laps="laps ?? []" :activity="activity" :units="units" />
           </TabsContent>
           <TabsContent value="sets">
+            <!-- homelab fork: work intervals -->
+            <WorkoutIntervalsTable
+              v-if="showIntervals"
+              :laps="laps ?? []"
+              :activity="activity"
+              :units="units"
+            />
             <ActivityWorkoutSets
+              v-else
               :workout-steps="workoutSteps ?? []"
               :workout-sets="workoutSets ?? []"
               :exercise-titles="exerciseTitles ?? []"

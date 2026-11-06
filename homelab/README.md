@@ -146,6 +146,18 @@ intensity of `active` or `interval` (Garmin marks structured reps `active` and e
 free run `interval`), counted only for activities tagged race, workout or NSM; such an activity
 with no laps counts whole. A long run counts only when it is also tagged workout.
 
+**Work intervals (the activity page's Workout tab).** For a structured session, the Workout tab
+shows the laps grouped as Garmin's Intervals tab does with its step filter on Run, instead of
+upstream's list of planned FIT steps. Consecutive laps with an effective intensity of `active` or
+`interval` form one interval (a 10-minute rep auto-lapped at the mile is one row with its two
+laps under it); any other intensity ends it. Each interval row sums time and distance, takes
+pace as time over distance, and averages GAP, heart rate and cadence by time; a total row closes
+the table. Times show tenths, so the laps visibly add up. The tab appears only when the laps mix
+work and non-work intensities, the work covers distance, and the sport is not swimming; strength
+sessions keep upstream's sets table. Grouping follows the owner's intensity overrides. Code:
+`frontend/src/features/lapIntensity/utils/intervals.ts` and `components/WorkoutIntervalsTable.vue`;
+the tab wiring in `ActivityDetailView.vue` is marked `homelab fork`.
+
 The tag keys match Strava's run `workout_type` (1 race, 2 long run, 3 workout). A later
 Strava-sourced comparison should store Strava's value in its own table (for example
 `homelab.activity_strava_workout_type`) rather than as rows here, so the user's own tags and
