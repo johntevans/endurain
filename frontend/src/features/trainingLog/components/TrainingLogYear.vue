@@ -15,11 +15,13 @@ import { Button } from '@/components/ui/button'
 import { useInfiniteScroll } from '@/composables/useInfiniteScroll'
 import { useTrainingLogWindowQuery } from '@/features/trainingLog/composables/useTrainingLog'
 import {
+  aerobicTotal,
   formatMetricValue,
   groupByDate,
   joinValue,
   matchesSport,
   matchesTag,
+  metricHasAerobic,
   metricHasQuality,
   metricTotal,
   qualityPercent,
@@ -81,6 +83,12 @@ const yearTotalValue = computed(() => metricTotal(yearActivities.value, props.me
 const yearTotal = computed(() =>
   joinValue(formatMetricValue(yearTotalValue.value, props.metric, props.units, props.swim)),
 )
+const yearAerobicValue = computed(() => aerobicTotal(yearActivities.value, props.metric))
+const yearAerobic = computed(() =>
+  metricHasAerobic(props.metric)
+    ? joinValue(formatMetricValue(yearAerobicValue.value, props.metric, props.units, props.swim))
+    : null,
+)
 const yearQuality = computed(() => {
   if (!metricHasQuality(props.metric)) {
     return null
@@ -88,7 +96,7 @@ const yearQuality = computed(() => {
   const value = qualityTotal(yearActivities.value, props.metric)
   return t('trainingLog.quality.value', {
     value: joinValue(formatMetricValue(value, props.metric, props.units, props.swim)),
-    percent: `${qualityPercent(value, yearTotalValue.value)}%`,
+    percent: `${qualityPercent(value, yearAerobicValue.value)}%`,
   })
 })
 
@@ -110,6 +118,12 @@ const loading = computed(() => !nearViewport.value || query.isPending.value)
       <span v-else-if="!loading" class="text-hint" data-testid="training-log-year-total">
         {{ t(`trainingLog.total.${metric}`) }}
         <span class="font-medium text-foreground">{{ yearTotal }}</span>
+        <span v-if="yearAerobic !== null" class="hidden sm:inline">
+          <span class="mx-1.5" aria-hidden="true">·</span>{{ t('trainingLog.aerobic.total') }}
+          <span class="font-medium text-foreground" data-testid="training-log-year-aerobic">{{
+            yearAerobic
+          }}</span>
+        </span>
         <template v-if="yearQuality">
           <span class="hidden sm:inline">
             <span class="mx-1.5" aria-hidden="true">·</span>{{ t('trainingLog.quality.total') }}

@@ -33,6 +33,9 @@ import {
   localTodayIso,
   matchesSport,
   matchesTag,
+  aerobicTotal,
+  isAerobicActivityType,
+  metricHasAerobic,
   metricHasQuality,
   metricTotal,
   metricValue,
@@ -272,6 +275,19 @@ describe('training log circles and numbers', () => {
     expect(metricTotal([activity, activity], 'distance')).toBe(20_000)
   })
 
+  it('totals aerobic volume without strength and mobility sessions', () => {
+    const run = makeLogActivity({ movingTime: 3_600 })
+    const ride = makeLogActivity({ activityType: 7, movingTime: 1_800 })
+    const strength = makeLogActivity({ activityType: 19, movingTime: 2_700, distance: 0 })
+    const therapy = makeLogActivity({ activityType: 1001, movingTime: 900, distance: 0 })
+    expect(aerobicTotal([run, ride, strength, therapy], 'time')).toBe(5_400)
+    expect(metricTotal([run, ride, strength, therapy], 'time')).toBe(9_000)
+    expect([1, 7, 13, 16, 40].every(isAerobicActivityType)).toBe(true)
+    expect([10, 14, 19, 20, 46, 1001].some(isAerobicActivityType)).toBe(false)
+    expect(metricHasAerobic('time')).toBe(true)
+    expect(metricHasAerobic('distance')).toBe(false)
+  })
+
   it('totals quality work and its share, with none for elevation', () => {
     const workout = makeLogActivity({ qualityTime: 1_800, qualityDistance: 6_000 })
     const easy = makeLogActivity()
@@ -457,6 +473,14 @@ describe('TrainingLogWeek', () => {
         qualityTime: 1_800,
         qualityDistance: 5_000,
       }),
+      makeLogActivity({
+        id: 3,
+        activityType: 19,
+        localDate: '2026-10-14',
+        movingTime: 2_700,
+        distance: 0,
+        elevationGain: null,
+      }),
     ])
     return mount(TrainingLogWeek, {
       props: {
@@ -478,7 +502,7 @@ describe('TrainingLogWeek', () => {
     const wrapper = mountWeek()
     expect(wrapper.text()).toContain('Oct 12 – 18')
     expect(wrapper.text()).toContain('Total Time')
-    expect(wrapper.get('[data-testid="training-log-week-total"]').text()).toBe('2h 15m')
+    expect(wrapper.get('[data-testid="training-log-week-total"]').text()).toBe('3h 0m')
     // Tue 13 is the only past empty day; Thu 15 is today (no Rest), Fri-Sun are future.
     expect(wrapper.findAll('[data-testid="training-log-rest"]')).toHaveLength(1)
     expect(wrapper.findAll('[data-testid="training-log-today"]')).toHaveLength(1)
@@ -491,18 +515,30 @@ describe('TrainingLogWeek', () => {
     expect(mountWeek().find('[data-testid="training-log-week-load"]').exists()).toBe(false)
   })
 
-  it('shows the quality total and its share of the week', async () => {
+  it('lists total, aerobic and quality time, quality as a share of aerobic', async () => {
     const wrapper = mountWeek()
-    expect(wrapper.text()).toContain('Total Quality')
-    expect(wrapper.text()).toContain('Quality %')
-    expect(wrapper.get('[data-testid="training-log-week-quality"]').text()).toBe('30m')
-    // 30 of 135 minutes.
-    expect(wrapper.get('[data-testid="training-log-week-quality-percent"]').text()).toBe('22%')
+    const stat = (key: string) =>
+      wrapper.get(`[data-testid="training-log-week-stat-${key}"]`).text()
+    expect(wrapper.get('[data-testid="training-log-week-stats"]').text()).toContain('Aerobic Time')
+    expect(stat('total')).toBe('3h 0m')
+    // The strength session is training time but not aerobic.
+    expect(stat('aerobic')).toBe('2h 15m')
+    expect(stat('quality')).toBe('30m')
+    // 30 of 135 aerobic minutes, not of 180.
+    expect(stat('quality-percent')).toBe('22%')
+    expect(wrapper.get('[data-testid="training-log-week-aerobic-short"]').text()).toBe(
+      '2h 15m aerobic',
+    )
     expect(wrapper.get('[data-testid="training-log-week-quality-short"]').text()).toBe(
       '22% quality',
     )
+    expect(wrapper.find('[data-testid="training-log-week-quality"]').exists()).toBe(false)
 
     await wrapper.setProps({ metric: 'distance' })
+    expect(wrapper.find('[data-testid="training-log-week-stats"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="training-log-week-aerobic-short"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Total Quality')
+    expect(wrapper.text()).toContain('Quality %')
     expect(wrapper.get('[data-testid="training-log-week-quality"]').text()).toBe('5.0 km')
     expect(wrapper.get('[data-testid="training-log-week-quality-percent"]').text()).toBe('28%')
 
@@ -553,6 +589,18 @@ describe('TrainingLogYear', () => {
         elevation_gain: 10,
         tags: [],
       },
+      {
+        id: 4,
+        name: 'Lifting',
+        activity_type: 19,
+        local_date: '2026-10-09',
+        start_time: '2026-10-09T17:00:00',
+        distance: 0,
+        total_timer_time: 3_600,
+        total_elapsed_time: 3_700,
+        elevation_gain: null,
+        tags: [],
+      },
     ])
     const weeks = buildTrainingLogYears('2026-10-05', '2026-10-15', 'monday')[0]?.weeks ?? []
     const props = {
@@ -575,7 +623,16 @@ describe('TrainingLogYear', () => {
     expect(wrapper.findAll('[data-testid="training-log-week"]')).toHaveLength(2)
     expect(wrapper.get('[data-testid="training-log-year-total"]').text()).toContain('52.0 km')
     expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('6.3 km (12%)')
-    expect(wrapper.findAll('[data-style]')).toHaveLength(3)
+    expect(wrapper.find('[data-testid="training-log-year-aerobic"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-style]')).toHaveLength(4)
+
+    // Time: the hour of lifting is in the total but not the aerobic time,
+    // and quality is a share of the aerobic time (30 of 240 minutes).
+    await wrapper.setProps({ metric: 'time' })
+    expect(wrapper.get('[data-testid="training-log-year-total"]').text()).toContain('5h 0m')
+    expect(wrapper.get('[data-testid="training-log-year-aerobic"]').text()).toBe('4h 0m')
+    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('30m (13%)')
+    await wrapper.setProps({ metric: 'distance' })
 
     const restDays = () => wrapper.findAll('[data-testid="training-log-rest"]').length
     const restBefore = restDays()

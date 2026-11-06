@@ -145,6 +145,11 @@ as imported. The training log's quality time and distance are the laps with an e
 intensity of `active` or `interval` (Garmin marks structured reps `active` and every lap of a
 free run `interval`), counted only for activities tagged race, workout or NSM; such an activity
 with no laps counts whole. A long run counts only when it is also tagged workout.
+With the Time measure, the log also shows **aerobic time**: every activity except workout,
+yoga, strength training, CrossFit, HIIT and physical therapy (types 10, 14, 19, 20, 46, 1001;
+`NON_AEROBIC_TYPES` in `features/trainingLog/utils/trainingLog.ts`). **Quality % is quality
+over aerobic time**, not over the total, so strength sessions don't dilute it. Both follow the
+sport filter: tick Run and aerobic time is running time.
 
 **Work intervals (the activity page's Workout tab).** For a structured session, the Workout tab
 shows the laps grouped as Garmin's Intervals tab does with its step filter on Run, instead of

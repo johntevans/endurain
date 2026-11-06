@@ -344,6 +344,34 @@ export function loadTotal(activities: readonly TrainingLogActivity[]): number | 
   return total
 }
 
+/**
+ * Strength and mobility types: workout, yoga, strength training, CrossFit,
+ * HIIT and the fork's physical therapy (1001). They count as training time but
+ * not as aerobic volume.
+ */
+const NON_AEROBIC_TYPES = new Set([10, 14, 19, 20, 46, 1001])
+
+/** Whether an activity type counts toward aerobic volume (every type but strength and mobility). */
+export function isAerobicActivityType(activityType: number): boolean {
+  return !NON_AEROBIC_TYPES.has(activityType)
+}
+
+/** Sum of a metric over the aerobic activities only. */
+export function aerobicTotal(
+  activities: readonly TrainingLogActivity[],
+  metric: TrainingLogMetric,
+): number {
+  return metricTotal(
+    activities.filter((activity) => isAerobicActivityType(activity.activityType)),
+    metric,
+  )
+}
+
+/** Whether a metric has an aerobic share shown beside its total (only time: strength has no distance). */
+export function metricHasAerobic(metric: TrainingLogMetric): metric is 'time' {
+  return metric === 'time'
+}
+
 /** Whether a metric has a quality share (elevation has none). */
 export function metricHasQuality(metric: TrainingLogMetric): metric is 'time' | 'distance' {
   return metric !== 'elevation'
@@ -365,6 +393,7 @@ export function qualityTotal(
 
 /**
  * Quality as a whole percentage of the total, `0` when there is no total.
+ * Callers pass the aerobic total, so strength sessions don't dilute the share.
  * Capped at 100, since lap sums can run a few seconds past an activity's own.
  */
 export function qualityPercent(quality: number, total: number): number {

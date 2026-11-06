@@ -21,8 +21,13 @@
     "distance": "Total Distance",
     "elevation": "Total Elevation"
   },
+  "aerobic": {
+    "total": "Aerobic Time",
+    "short": "{value} aerobic"
+  },
   "quality": {
     "total": "Total Quality",
+    "label": "Quality",
     "percent": "Quality %",
     "short": "{percent} quality",
     "value": "{value} ({percent})"
