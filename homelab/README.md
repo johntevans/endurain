@@ -532,8 +532,18 @@ pins the tag and digest in homelab-ops (commit and push), takes the dump, pulls,
 waits for healthy, lists the migrations that ran and any new startup errors, and probes both
 hostnames. `homelab/deploy <commit>` deploys or rolls back to that commit's image, and
 `--dry-run` checks without changing anything. It refuses to run if production's compose file
-has drifted from homelab-ops. In a Claude session, `/deploy-homelab` wraps it. The steps by
-hand:
+has drifted from homelab-ops. In a Claude session, `/deploy-homelab` wraps it.
+
+**If a push builds nothing** (deploy says "no image build for <sha>", and the commit has no
+workflow runs at all), GitHub may have disabled workflows on the fork "due to the scale of
+GitHub Actions usage", as it did on 2026-11-07. The API then answers 422 "Actions has been
+disabled for this repository" while `actions/permissions` and the workflow still read enabled
+and active; only the signed-in Actions page shows why. The owner re-enables them there ("I
+understand my workflows..."); a session can't. The missed push does not build on its own
+afterwards: start it with `gh workflow run homelab-image.yml -R johntevans/endurain --ref
+homelab`.
+
+The steps by hand:
 
 1. Push to `homelab`. The **Homelab image** workflow runs the backend and frontend tests and
    then pushes `ghcr.io/johntevans/endurain:<upstream tag>-homelab-<sha7>` plus a moving
