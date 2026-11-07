@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import type { Units } from '@/features/activities/utils/format'
 import type {
+  QualityDisplay,
   SportFilter,
   TagFilter,
   TrainingLogMetric,
@@ -41,6 +42,7 @@ const props = defineProps<{
   sport: SportFilter
   tag: TagFilter
   metric: TrainingLogMetric
+  qualityDisplay: QualityDisplay
   units: Units
   swim: boolean
   today: string
@@ -94,10 +96,9 @@ const yearQuality = computed(() => {
     return null
   }
   const value = qualityTotal(yearActivities.value, props.metric)
-  return t('trainingLog.quality.value', {
-    value: joinValue(formatMetricValue(value, props.metric, props.units, props.swim)),
-    percent: `${qualityPercent(value, yearAerobicValue.value)}%`,
-  })
+  return props.qualityDisplay === 'percent'
+    ? `${qualityPercent(value, yearAerobicValue.value)}%`
+    : joinValue(formatMetricValue(value, props.metric, props.units, props.swim))
 })
 
 const loading = computed(() => !nearViewport.value || query.isPending.value)
@@ -126,7 +127,7 @@ const loading = computed(() => !nearViewport.value || query.isPending.value)
         </span>
         <template v-if="yearQuality">
           <span class="hidden sm:inline">
-            <span class="mx-1.5" aria-hidden="true">·</span>{{ t('trainingLog.quality.total') }}
+            <span class="mx-1.5" aria-hidden="true">·</span>{{ t('trainingLog.stats.quality') }}
             <span class="font-medium text-foreground" data-testid="training-log-year-quality">{{
               yearQuality
             }}</span>
@@ -143,6 +144,7 @@ const loading = computed(() => !nearViewport.value || query.isPending.value)
           :by-date="byDate"
           :active-dates="activeDates"
           :metric="metric"
+          :quality-display="qualityDisplay"
           :units="units"
           :swim="swim"
           :today="today"

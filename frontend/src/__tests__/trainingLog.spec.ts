@@ -5,7 +5,12 @@ import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
-import type { SportFilter, TagFilter, TrainingLogActivity } from '@/features/trainingLog/types'
+import type {
+  QualityDisplay,
+  SportFilter,
+  TagFilter,
+  TrainingLogActivity,
+} from '@/features/trainingLog/types'
 
 import { apiFetch } from '@/services/http'
 import i18n from '@/i18n'
@@ -41,7 +46,12 @@ import {
   metricValue,
   MIN_CIRCLE_FRACTION,
   monthWeekIndex,
+  MEASURE_OPTIONS,
+  measureLabelKey,
+  measureOption,
+  measureSettings,
   parseMetric,
+  parseQualityDisplay,
   parseSportFilter,
   parseTagFilter,
   qualityPercent,
@@ -246,6 +256,29 @@ describe('training log filters', () => {
     expect(parseTagFilter('tempo,race')).toEqual(['race'])
     expect(parseMetric('elevation')).toBe('elevation')
     expect(parseMetric('pace')).toBe('time')
+    expect(parseQualityDisplay('percent')).toBe('percent')
+    expect(parseQualityDisplay('raw')).toBe('value')
+    expect(parseQualityDisplay(undefined)).toBe('value')
+  })
+
+  it('maps measure pulldown entries to a metric and quality display', () => {
+    expect(MEASURE_OPTIONS.map(measureSettings)).toEqual([
+      { metric: 'time', quality: 'value' },
+      { metric: 'time', quality: 'percent' },
+      { metric: 'distance', quality: 'value' },
+      { metric: 'distance', quality: 'percent' },
+      { metric: 'elevation', quality: 'value' },
+    ])
+    expect(measureOption('distance', 'percent')).toBe('distance-percent')
+    expect(measureOption('time', 'value')).toBe('time')
+    expect(measureOption('elevation', 'percent')).toBe('elevation')
+    expect(measureLabelKey('distance', 'imperial', false)).toBe(
+      'trainingLog.measures.distance.miles',
+    )
+    expect(measureLabelKey('distance', 'metric', true)).toBe('trainingLog.measures.distance.meters')
+    expect(measureLabelKey('time-percent', 'imperial', false)).toBe(
+      'trainingLog.measures.time-percent',
+    )
     expect(filterFamilies([])).toEqual([])
     expect(filterFamilies(['type-14'])).toEqual(['other'])
     expect(filterFamilies(['swim'])).toEqual(['swim'])
@@ -488,6 +521,7 @@ describe('TrainingLogWeek', () => {
         byDate,
         activeDates: new Set(['2026-10-12', '2026-10-14', '2026-10-16']),
         metric,
+        qualityDisplay: 'value' as const,
         units: 'metric',
         swim: false,
         today: '2026-10-15',
@@ -501,7 +535,7 @@ describe('TrainingLogWeek', () => {
   it('totals the week for the chosen metric and only rests past days', () => {
     const wrapper = mountWeek()
     expect(wrapper.text()).toContain('Oct 12 – 18')
-    expect(wrapper.text()).toContain('Total Time')
+    expect(wrapper.text()).toContain('Total')
     expect(wrapper.get('[data-testid="training-log-week-total"]').text()).toBe('3h 0m')
     // Tue 13 is the only past empty day; Thu 15 is today (no Rest), Fri-Sun are future.
     expect(wrapper.findAll('[data-testid="training-log-rest"]')).toHaveLength(1)
@@ -515,32 +549,36 @@ describe('TrainingLogWeek', () => {
     expect(mountWeek().find('[data-testid="training-log-week-load"]').exists()).toBe(false)
   })
 
-  it('lists total, aerobic and quality time, quality as a share of aerobic', async () => {
+  it('lists total, aerobic and quality, quality as an amount or a share of aerobic', async () => {
     const wrapper = mountWeek()
     const stat = (key: string) =>
       wrapper.get(`[data-testid="training-log-week-stat-${key}"]`).text()
-    expect(wrapper.get('[data-testid="training-log-week-stats"]').text()).toContain('Aerobic Time')
+    expect(wrapper.get('[data-testid="training-log-week-stats"]').text()).toContain('Aerobic')
     expect(stat('total')).toBe('3h 0m')
     // The strength session is training time but not aerobic.
     expect(stat('aerobic')).toBe('2h 15m')
     expect(stat('quality')).toBe('30m')
-    // 30 of 135 aerobic minutes, not of 180.
-    expect(stat('quality-percent')).toBe('22%')
     expect(wrapper.get('[data-testid="training-log-week-aerobic-short"]').text()).toBe(
       '2h 15m aerobic',
     )
     expect(wrapper.get('[data-testid="training-log-week-quality-short"]').text()).toBe(
-      '22% quality',
+      '30m quality',
     )
     expect(wrapper.find('[data-testid="training-log-week-quality"]').exists()).toBe(false)
+
+    // 30 of 135 aerobic minutes, not of 180.
+    await wrapper.setProps({ qualityDisplay: 'percent' })
+    expect(stat('quality')).toBe('22%')
+    expect(wrapper.get('[data-testid="training-log-week-quality-short"]').text()).toBe(
+      '22% quality',
+    )
 
     await wrapper.setProps({ metric: 'distance' })
     expect(wrapper.find('[data-testid="training-log-week-stats"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="training-log-week-aerobic-short"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('Total Quality')
-    expect(wrapper.text()).toContain('Quality %')
+    expect(wrapper.get('[data-testid="training-log-week-quality"]').text()).toBe('28%')
+    await wrapper.setProps({ qualityDisplay: 'value' })
     expect(wrapper.get('[data-testid="training-log-week-quality"]').text()).toBe('5.0 km')
-    expect(wrapper.get('[data-testid="training-log-week-quality-percent"]').text()).toBe('28%')
 
     await wrapper.setProps({ metric: 'elevation' })
     expect(wrapper.find('[data-testid="training-log-week-quality"]').exists()).toBe(false)
@@ -609,6 +647,7 @@ describe('TrainingLogYear', () => {
       sport: [] as SportFilter,
       tag: [] as TagFilter,
       metric: 'distance' as const,
+      qualityDisplay: 'value' as QualityDisplay,
       units: 'metric' as const,
       swim: false,
       today: '2026-10-15',
@@ -622,7 +661,9 @@ describe('TrainingLogYear', () => {
     )
     expect(wrapper.findAll('[data-testid="training-log-week"]')).toHaveLength(2)
     expect(wrapper.get('[data-testid="training-log-year-total"]').text()).toContain('52.0 km')
-    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('6.3 km (12%)')
+    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('6.3 km')
+    await wrapper.setProps({ qualityDisplay: 'percent' })
+    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('12%')
     expect(wrapper.find('[data-testid="training-log-year-aerobic"]').exists()).toBe(false)
     expect(wrapper.findAll('[data-style]')).toHaveLength(4)
 
@@ -631,7 +672,9 @@ describe('TrainingLogYear', () => {
     await wrapper.setProps({ metric: 'time' })
     expect(wrapper.get('[data-testid="training-log-year-total"]').text()).toContain('5h 0m')
     expect(wrapper.get('[data-testid="training-log-year-aerobic"]').text()).toBe('4h 0m')
-    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('30m (13%)')
+    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('13%')
+    await wrapper.setProps({ qualityDisplay: 'value' })
+    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('30m')
     await wrapper.setProps({ metric: 'distance' })
 
     const restDays = () => wrapper.findAll('[data-testid="training-log-rest"]').length
@@ -639,7 +682,7 @@ describe('TrainingLogYear', () => {
 
     await wrapper.setProps({ sport: ['ride'] })
     expect(wrapper.findAll('[data-style]')).toHaveLength(1)
-    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('0.0 km (0%)')
+    expect(wrapper.get('[data-testid="training-log-year-quality"]').text()).toBe('0.0 km')
     // Filtering out Sunday's run does not turn Sunday into a rest day.
     expect(restDays()).toBe(restBefore)
     expect(wrapper.get('[data-testid="training-log-year-total"]').text()).toContain('12.0 km')
@@ -678,6 +721,10 @@ describe('TrainingLogLegend', () => {
 })
 
 describe('TrainingLogView', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
   afterEach(() => {
     vi.useRealTimers()
   })
@@ -709,6 +756,11 @@ describe('TrainingLogView', () => {
     return [...document.body.querySelectorAll<HTMLElement>('[role="menuitemcheckbox"]')]
   }
 
+  /** The measure pulldown's selected entry. */
+  function measure(wrapper: Awaited<ReturnType<typeof mountView>>['wrapper']): string {
+    return (wrapper.get('#training-log-metric').element as HTMLSelectElement).value
+  }
+
   it('shows every year since the first activity, with filters from the URL', async () => {
     vi.mocked(apiFetch).mockImplementation(async (url: string) =>
       url.endsWith('/range') ? { first_date: '2025-03-04', last_date: '2026-10-14' } : [],
@@ -722,9 +774,7 @@ describe('TrainingLogView', () => {
       wrapper.findAll('section[data-tl-year]').map((s) => s.attributes('data-tl-year')),
     ).toEqual(['2026', '2025'])
     expect(wrapper.get('#training-log-sport').text()).toBe('Ride')
-    expect((wrapper.get('#training-log-metric').element as HTMLSelectElement).value).toBe(
-      'elevation',
-    )
+    expect(measure(wrapper)).toBe('elevation')
     expect(wrapper.get('#training-log-tag').text()).toBe('Race, Workout')
     expect(wrapper.text()).toContain('Total Elevation')
 
@@ -783,6 +833,65 @@ describe('TrainingLogView', () => {
     expect(view.router.currentRoute.value.query).toEqual({ tag: 'workout,long_run' })
     expect(view.wrapper.get('#training-log-tag').text()).toBe('Workout, Long Run')
     view.wrapper.unmount()
+  })
+
+  it('picks the measure and how quality shows from one pulldown', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url: string) =>
+      url.endsWith('/range') ? { first_date: '2026-03-04', last_date: '2026-10-14' } : [],
+    )
+
+    const { wrapper, router } = await mountView('/training-log?quality=percent')
+    expect(measure(wrapper)).toBe('time-percent')
+    expect(wrapper.findAll('#training-log-metric option').map((option) => option.text())).toEqual([
+      'Time – Quality Time',
+      'Time – Quality Percent',
+      'Distance – Quality Kilometers',
+      'Distance – Quality Percent',
+      'Elevation',
+    ])
+
+    await wrapper.get('#training-log-metric').setValue('time')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({})
+
+    await wrapper.get('#training-log-metric').setValue('distance-percent')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ metric: 'distance', quality: 'percent' })
+
+    // Elevation has no quality, so it drops the percent setting.
+    await wrapper.get('#training-log-metric').setValue('elevation')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ metric: 'elevation' })
+    wrapper.unmount()
+  })
+
+  it('remembers the settings after leaving, unless a link names its own', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (url: string) =>
+      url.endsWith('/range') ? { first_date: '2026-03-04', last_date: '2026-10-14' } : [],
+    )
+
+    const first = await mountView('/training-log?sport=run&metric=distance&quality=percent')
+    first.wrapper.unmount()
+
+    // Coming back from the nav (no query) restores them, URL included.
+    const back = await mountView('/training-log')
+    expect(measure(back.wrapper)).toBe('distance-percent')
+    expect(back.wrapper.get('#training-log-sport').text()).toBe('Run')
+    expect(back.router.currentRoute.value.query).toEqual({
+      sport: 'run',
+      metric: 'distance',
+      quality: 'percent',
+    })
+    back.wrapper.unmount()
+
+    // A link with filters of its own wins, and becomes what is remembered.
+    const link = await mountView('/training-log?tag=race')
+    expect(measure(link.wrapper)).toBe('time')
+    expect(link.wrapper.get('#training-log-sport').text()).toBe('All sports')
+    link.wrapper.unmount()
+    const again = await mountView('/training-log')
+    expect(again.router.currentRoute.value.query).toEqual({ tag: 'race' })
+    again.wrapper.unmount()
   })
 
   it('offers sport options from the user types and an empty state without activities', async () => {

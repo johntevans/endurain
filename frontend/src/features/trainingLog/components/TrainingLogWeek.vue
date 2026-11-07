@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import type { Units } from '@/features/activities/utils/format'
 import type {
+  QualityDisplay,
   TrainingLogActivity,
   TrainingLogMetric,
   TrainingLogWeek,
@@ -36,6 +37,8 @@ const props = defineProps<{
   /** Days with any activity, before filtering; only other past days are rest. */
   activeDates: ReadonlySet<string>
   metric: TrainingLogMetric
+  /** Whether quality shows as an amount or as a share of aerobic. */
+  qualityDisplay: QualityDisplay
   units: Units
   swim: boolean
   /** Today, `YYYY-MM-DD` (local). */
@@ -70,32 +73,26 @@ const aerobic = computed(() =>
     : null,
 )
 
-// The week's quality work (time or distance; elevation has none) and its
-// share of the aerobic total.
+// The week's quality work (time or distance; elevation has none), as an
+// amount or as its share of the aerobic total, per the toggle.
 const quality = computed(() => {
   if (!metricHasQuality(props.metric)) {
     return null
   }
   const value = qualityTotal(weekActivities.value, props.metric)
-  return {
-    total: joinValue(formatMetricValue(value, props.metric, props.units, props.swim)),
-    percent: `${qualityPercent(value, aerobicValue.value)}%`,
-  }
+  return props.qualityDisplay === 'percent'
+    ? `${qualityPercent(value, aerobicValue.value)}%`
+    : joinValue(formatMetricValue(value, props.metric, props.units, props.swim))
 })
 
-// Time shows four numbers, more than fit stacked in a row, so it lists them
+// Time shows three numbers, more than fit stacked in a row, so it lists them
 // one per line; the other metrics keep the large total.
 const stats = computed(() =>
-  aerobic.value !== null && quality.value
+  aerobic.value !== null && quality.value !== null
     ? [
-        { key: 'total', label: t(`trainingLog.total.${props.metric}`), value: total.value },
-        { key: 'aerobic', label: t('trainingLog.aerobic.total'), value: aerobic.value },
-        { key: 'quality', label: t('trainingLog.quality.label'), value: quality.value.total },
-        {
-          key: 'quality-percent',
-          label: t('trainingLog.quality.percent'),
-          value: quality.value.percent,
-        },
+        { key: 'total', label: t('trainingLog.stats.total'), value: total.value },
+        { key: 'aerobic', label: t('trainingLog.stats.aerobic'), value: aerobic.value },
+        { key: 'quality', label: t('trainingLog.stats.quality'), value: quality.value },
       ]
     : null,
 )
@@ -113,7 +110,7 @@ const weekLoad = computed(() => loadTotal(weekActivities.value))
     data-testid="training-log-week"
   >
     <div
-      class="col-span-7 flex items-baseline justify-between gap-2 px-1 pt-2 sm:col-span-1 sm:flex-col sm:justify-start sm:gap-0 sm:pt-4"
+      class="col-span-7 flex flex-wrap items-baseline justify-between gap-x-2 px-1 pt-2 sm:col-span-1 sm:flex-col sm:justify-start sm:gap-0 sm:pt-4"
     >
       <span class="text-[15px] font-medium whitespace-nowrap text-foreground sm:text-[17px]">{{
         label
@@ -125,7 +122,7 @@ const weekLoad = computed(() => loadTotal(weekActivities.value))
         >{{ t('trainingLoad.value', { value: weekLoad }) }}</span
       >
       <span
-        class="flex items-baseline gap-2 sm:mt-3 sm:flex-col sm:gap-0.5"
+        class="flex basis-full items-baseline gap-3 sm:mt-3 sm:basis-auto sm:flex-col sm:gap-0.5"
         :class="{ 'sm:hidden': stats }"
       >
         <!-- On a phone, time's three numbers need the room the label would take. -->
@@ -135,7 +132,7 @@ const weekLoad = computed(() => loadTotal(weekActivities.value))
         <Skeleton v-if="loading" class="h-5 w-16 sm:h-6" />
         <span
           v-else
-          class="text-[15px] font-medium text-foreground sm:text-[20px]"
+          class="text-[15px] font-medium whitespace-nowrap text-foreground sm:text-[20px]"
           data-testid="training-log-week-total"
           >{{ total }}</span
         >
@@ -146,20 +143,24 @@ const weekLoad = computed(() => loadTotal(weekActivities.value))
           >{{ t('trainingLog.aerobic.short', { value: aerobic }) }}</span
         >
         <span
-          v-if="quality && !loading"
+          v-if="quality !== null && !loading"
           class="text-micro whitespace-nowrap text-muted-foreground sm:hidden"
           data-testid="training-log-week-quality-short"
-          >{{ t('trainingLog.quality.short', { percent: quality.percent }) }}</span
+          >{{ t('trainingLog.quality.short', { value: quality }) }}</span
         >
       </span>
       <dl
         v-if="stats"
-        class="hidden w-full grid-cols-[auto_1fr] items-baseline gap-x-2 gap-y-1 sm:mt-3 sm:grid"
+        class="hidden w-full flex-col gap-1 sm:mt-3 sm:flex"
         data-testid="training-log-week-stats"
       >
-        <template v-for="stat in stats" :key="stat.key">
+        <div
+          v-for="stat in stats"
+          :key="stat.key"
+          class="flex items-baseline justify-between gap-2 whitespace-nowrap"
+        >
           <dt class="text-micro text-muted-foreground">{{ stat.label }}</dt>
-          <dd class="flex justify-end">
+          <dd>
             <Skeleton v-if="loading" class="h-5 w-12" />
             <span
               v-else
@@ -168,31 +169,17 @@ const weekLoad = computed(() => loadTotal(weekActivities.value))
               >{{ stat.value }}</span
             >
           </dd>
-        </template>
+        </div>
       </dl>
-      <span v-else-if="quality" class="hidden gap-4 sm:mt-2.5 sm:flex">
-        <span class="flex flex-col gap-0.5">
-          <span class="text-micro text-muted-foreground">{{ t('trainingLog.quality.total') }}</span>
-          <Skeleton v-if="loading" class="h-5 w-12" />
-          <span
-            v-else
-            class="text-[15px] font-medium text-foreground"
-            data-testid="training-log-week-quality"
-            >{{ quality.total }}</span
-          >
-        </span>
-        <span class="flex flex-col gap-0.5">
-          <span class="text-micro text-muted-foreground">{{
-            t('trainingLog.quality.percent')
-          }}</span>
-          <Skeleton v-if="loading" class="h-5 w-10" />
-          <span
-            v-else
-            class="text-[15px] font-medium text-foreground"
-            data-testid="training-log-week-quality-percent"
-            >{{ quality.percent }}</span
-          >
-        </span>
+      <span v-else-if="quality !== null" class="hidden flex-col gap-0.5 sm:mt-2.5 sm:flex">
+        <span class="text-micro text-muted-foreground">{{ t('trainingLog.stats.quality') }}</span>
+        <Skeleton v-if="loading" class="h-5 w-12" />
+        <span
+          v-else
+          class="text-[15px] font-medium text-foreground"
+          data-testid="training-log-week-quality"
+          >{{ quality }}</span
+        >
       </span>
     </div>
     <TrainingLogDay

@@ -8,6 +8,8 @@ import type {
   SportFamily,
   SportFilter,
   SportOption,
+  MeasureOption,
+  QualityDisplay,
   TagFilter,
   TrainingLogMetric,
   TrainingLogWeek,
@@ -17,15 +19,16 @@ import type { ActivityTagKey } from '@/features/activityTags/types'
 import '@/features/trainingLog/trainingLog.css'
 import TrainingLogLegend from '@/features/trainingLog/components/TrainingLogLegend.vue'
 import TrainingLogMultiSelect from '@/features/trainingLog/components/TrainingLogMultiSelect.vue'
+import TrainingLogSelect from '@/features/trainingLog/components/TrainingLogSelect.vue'
 import TrainingLogSideNav from '@/features/trainingLog/components/TrainingLogSideNav.vue'
 import TrainingLogYear from '@/features/trainingLog/components/TrainingLogYear.vue'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ErrorState } from '@/components/ui/error-state'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCurrentUser } from '@/features/auth/composables/useCurrentUser'
 import { useRouteQueryReplacement } from '@/composables/useRouteQuery'
+import { getStorageItem, setStorageItem } from '@/lib/storage'
 import { useUserActivityTypeMapQuery } from '@/features/activities/composables/useActivities'
 import { useTrainingLogRangeQuery } from '@/features/trainingLog/composables/useTrainingLog'
 import { ACTIVITY_TAGS } from '@/features/activityTags/utils/activityTags'
@@ -34,8 +37,13 @@ import {
   buildTrainingLogYears,
   filterFamilies,
   localTodayIso,
+  MEASURE_OPTIONS,
+  measureLabelKey,
+  measureOption,
+  measureSettings,
   monthWeekIndex,
   parseMetric,
+  parseQualityDisplay,
   parseSportFilter,
   parseTagFilter,
   sportFamily,
@@ -58,20 +66,40 @@ const units = computed(() => currentUser.value?.units ?? 'metric')
 const firstDayOfWeek = computed(() => currentUser.value?.firstDayOfWeek ?? 'monday')
 const today = localTodayIso()
 
-// --- Filters (mirrored into the URL so a refresh or a shared link keeps them).
-// Sport and tag are lists (`?sport=run,type-1001&tag=workout,long_run`); an
-// empty list means all.
-const sport = ref<SportFilter>(parseSportFilter(route.query.sport))
-const metric = ref<TrainingLogMetric>(parseMetric(route.query.metric))
-const tag = ref<TagFilter>(parseTagFilter(route.query.tag))
+// --- Filters (mirrored into the URL so a refresh or a shared link keeps them,
+// and saved in this browser so they come back after leaving the page). Sport
+// and tag are lists (`?sport=run,type-1001&tag=workout,long_run`); an empty
+// list means all. A link that names any filter wins over the saved ones.
+const SETTINGS_KEY = 'trainingLog:settings'
+const SETTINGS_PARAMS = ['sport', 'metric', 'tag', 'quality'] as const
+type SavedSettings = Partial<Record<(typeof SETTINGS_PARAMS)[number], string>>
 
-useRouteQueryReplacement(
-  computed(() => ({
-    sport: sport.value.length === 0 ? undefined : sport.value.join(','),
-    metric: metric.value === 'time' ? undefined : metric.value,
-    tag: tag.value.length === 0 ? undefined : tag.value.join(','),
-  })),
-)
+const initial: Record<string, unknown> = SETTINGS_PARAMS.some((key) => key in route.query)
+  ? route.query
+  : (getStorageItem<SavedSettings>(SETTINGS_KEY) ?? {})
+const sport = ref<SportFilter>(parseSportFilter(initial.sport))
+const metric = ref<TrainingLogMetric>(parseMetric(initial.metric))
+const tag = ref<TagFilter>(parseTagFilter(initial.tag))
+const qualityDisplay = ref<QualityDisplay>(parseQualityDisplay(initial.quality))
+
+const settingsQuery = computed<SavedSettings>(() => ({
+  sport: sport.value.length === 0 ? undefined : sport.value.join(','),
+  metric: metric.value === 'time' ? undefined : metric.value,
+  tag: tag.value.length === 0 ? undefined : tag.value.join(','),
+  quality: qualityDisplay.value === 'value' ? undefined : qualityDisplay.value,
+}))
+useRouteQueryReplacement(settingsQuery)
+
+// The measure pulldown sets the metric and the quality display together.
+const measure = computed<MeasureOption>({
+  get: () => measureOption(metric.value, qualityDisplay.value),
+  set: (option) => {
+    const settings = measureSettings(option)
+    metric.value = settings.metric
+    qualityDisplay.value = settings.quality
+  },
+})
+watch(settingsQuery, (settings) => setStorageItem(SETTINGS_KEY, settings), { immediate: true })
 
 const typeMapQuery = useUserActivityTypeMapQuery()
 const typeCodes = computed(() => [...(typeMapQuery.data.value?.keys() ?? [])])
@@ -86,12 +114,6 @@ const sportOptions = computed<Array<{ value: SportOption; label: string }>>(() =
 const tagOptions = computed<Array<{ value: ActivityTagKey; label: string }>>(() =>
   ACTIVITY_TAGS.map((option) => ({ value: option.key, label: t(option.labelKey) })),
 )
-
-const METRIC_OPTIONS: ReadonlyArray<{ value: TrainingLogMetric; labelKey: string }> = [
-  { value: 'time', labelKey: 'trainingLog.metrics.time' },
-  { value: 'distance', labelKey: 'trainingLog.metrics.distance' },
-  { value: 'elevation', labelKey: 'trainingLog.metrics.elevation' },
-]
 
 // Distances read in swim units only when swimming is all that is shown.
 const selectedFamilies = computed(() => filterFamilies(sport.value))
@@ -249,7 +271,8 @@ const yearPicker = computed<number>({
 
     <!-- Filters and legend -->
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+      <!-- On a phone the measure takes a row of its own: its labels are long. -->
+      <div class="grid grid-flow-row-dense grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         <div>
           <TrainingLogMultiSelect
             id="training-log-sport"
@@ -261,15 +284,15 @@ const yearPicker = computed<number>({
             class="w-full sm:w-48"
           />
         </div>
-        <div>
+        <div class="col-span-2">
           <Label for="training-log-metric" class="sr-only">{{
             t('trainingLog.filters.metric')
           }}</Label>
-          <Select id="training-log-metric" v-model="metric" class="w-full sm:w-36">
-            <option v-for="option in METRIC_OPTIONS" :key="option.value" :value="option.value">
-              {{ t(option.labelKey) }}
+          <TrainingLogSelect id="training-log-metric" v-model="measure" class="w-full sm:w-64">
+            <option v-for="option in MEASURE_OPTIONS" :key="option" :value="option">
+              {{ t(measureLabelKey(option, units, swim)) }}
             </option>
-          </Select>
+          </TrainingLogSelect>
         </div>
         <div>
           <TrainingLogMultiSelect
@@ -284,11 +307,11 @@ const yearPicker = computed<number>({
         </div>
         <div v-if="years.length > 1" class="lg:hidden">
           <Label for="training-log-year" class="sr-only">{{ t('trainingLog.filters.year') }}</Label>
-          <Select id="training-log-year" v-model="yearPicker" class="w-full sm:w-28">
+          <TrainingLogSelect id="training-log-year" v-model="yearPicker" class="w-full sm:w-28">
             <option v-for="entry in years" :key="entry.year" :value="entry.year">
               {{ entry.year }}
             </option>
-          </Select>
+          </TrainingLogSelect>
         </div>
       </div>
       <TrainingLogLegend
@@ -319,7 +342,7 @@ const yearPicker = computed<number>({
 
     <div
       v-else
-      class="grid grid-cols-1 gap-6 [--tl-circle-zone:2.75rem] [--tl-circle:2.4rem] [--tl-row-h:6.25rem] [--tl-year-h:3.25rem] sm:[--tl-circle-zone:5.5rem] sm:[--tl-circle:4.5rem] sm:[--tl-row-h:11.5rem] lg:grid-cols-[minmax(0,1fr)_13rem] lg:[--tl-circle-zone:6.5rem] lg:[--tl-circle:5.5rem] lg:[--tl-row-h:12.5rem]"
+      class="grid grid-cols-1 gap-6 [--tl-circle-zone:2.75rem] [--tl-circle:2.4rem] [--tl-row-h:7.5rem] [--tl-year-h:3.25rem] sm:[--tl-circle-zone:5.5rem] sm:[--tl-circle:4.5rem] sm:[--tl-row-h:11.5rem] lg:grid-cols-[minmax(0,1fr)_13rem] lg:[--tl-circle-zone:6.5rem] lg:[--tl-circle:5.5rem] lg:[--tl-row-h:12.5rem]"
     >
       <div ref="logEl" class="min-w-0">
         <div
@@ -345,6 +368,7 @@ const yearPicker = computed<number>({
           :sport="sport"
           :tag="tag"
           :metric="metric"
+          :quality-display="qualityDisplay"
           :units="units"
           :swim="swim"
           :today="today"

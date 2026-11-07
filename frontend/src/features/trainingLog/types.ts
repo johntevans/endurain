@@ -53,6 +53,15 @@ export interface TrainingLogRange {
 /** The weekly total and circle size measure (Strava's "Time / Distance / Elevation"). */
 export type TrainingLogMetric = 'time' | 'distance' | 'elevation'
 
+/** How quality reads beside a time or distance total: the amount, or its share of aerobic. */
+export type QualityDisplay = 'value' | 'percent'
+
+/**
+ * One entry of the measure pulldown: a metric and, for time and distance, how
+ * quality shows. Stored as `metric` and `quality` (URL and saved settings).
+ */
+export type MeasureOption = 'time' | 'time-percent' | 'distance' | 'distance-percent' | 'elevation'
+
 /** Sport families that share a colour and a size scale. */
 export type SportFamily = 'run' | 'ride' | 'swim' | 'walk' | 'other'
 

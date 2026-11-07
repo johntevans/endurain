@@ -9,6 +9,8 @@ import type { ActivityTagKey } from '@/features/activityTags/types'
 import type { Units } from '@/features/activities/utils/format'
 import type {
   CircleStyle,
+  MeasureOption,
+  QualityDisplay,
   SportFamily,
   SportFilter,
   SportOption,
@@ -279,6 +281,50 @@ export function parseTagFilter(value: unknown): TagFilter {
 /** Parses the `metric` query param; defaults to time, as Strava does for runs. */
 export function parseMetric(value: unknown): TrainingLogMetric {
   return value === 'distance' || value === 'elevation' ? value : 'time'
+}
+
+/** Parses the `quality` query param; defaults to the amount. */
+export function parseQualityDisplay(value: unknown): QualityDisplay {
+  return value === 'percent' ? 'percent' : 'value'
+}
+
+/** The measure pulldown's entries, in menu order. */
+export const MEASURE_OPTIONS: readonly MeasureOption[] = [
+  'time',
+  'time-percent',
+  'distance',
+  'distance-percent',
+  'elevation',
+]
+
+/** The measure pulldown entry for a metric and quality display. */
+export function measureOption(metric: TrainingLogMetric, quality: QualityDisplay): MeasureOption {
+  if (metric === 'elevation') {
+    return 'elevation'
+  }
+  return quality === 'percent' ? `${metric}-percent` : metric
+}
+
+/** The metric and quality display a measure pulldown entry stands for. */
+export function measureSettings(option: MeasureOption): {
+  metric: TrainingLogMetric
+  quality: QualityDisplay
+} {
+  const [metric, quality] = option.split('-') as [TrainingLogMetric, string | undefined]
+  return { metric, quality: quality === 'percent' ? 'percent' : 'value' }
+}
+
+/**
+ * The label key of a measure pulldown entry; the distance amount's names the
+ * unit it counts in.
+ */
+export function measureLabelKey(option: MeasureOption, units: Units, swim: boolean): string {
+  if (option !== 'distance') {
+    return `trainingLog.measures.${option}`
+  }
+  const imperial = units === 'imperial'
+  const unit = swim ? (imperial ? 'yards' : 'meters') : imperial ? 'miles' : 'kilometers'
+  return `trainingLog.measures.distance.${unit}`
 }
 
 /**

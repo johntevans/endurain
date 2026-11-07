@@ -11,9 +11,16 @@
     "tagCount": "{count} tags",
     "year": "Year"
   },
-  "metrics": {
-    "time": "Time",
-    "distance": "Distance",
+  "measures": {
+    "time": "Time – Quality Time",
+    "time-percent": "Time – Quality Percent",
+    "distance": {
+      "miles": "Distance – Quality Miles",
+      "kilometers": "Distance – Quality Kilometers",
+      "yards": "Distance – Quality Yards",
+      "meters": "Distance – Quality Meters"
+    },
+    "distance-percent": "Distance – Quality Percent",
     "elevation": "Elevation"
   },
   "total": {
@@ -25,12 +32,13 @@
     "total": "Aerobic Time",
     "short": "{value} aerobic"
   },
+  "stats": {
+    "total": "Total",
+    "aerobic": "Aerobic",
+    "quality": "Quality"
+  },
   "quality": {
-    "total": "Total Quality",
-    "label": "Quality",
-    "percent": "Quality %",
-    "short": "{percent} quality",
-    "value": "{value} ({percent})"
+    "short": "{value} quality"
   },
   "sports": {
     "run": "Run",

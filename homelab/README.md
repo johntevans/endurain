@@ -149,7 +149,13 @@ With the Time measure, the log also shows **aerobic time**: every activity excep
 yoga, strength training, CrossFit, HIIT and physical therapy (types 10, 14, 19, 20, 46, 1001;
 `NON_AEROBIC_TYPES` in `features/trainingLog/utils/trainingLog.ts`). **Quality % is quality
 over aerobic time**, not over the total, so strength sessions don't dilute it. Both follow the
-sport filter: tick Run and aerobic time is running time.
+sport filter: tick Run and aerobic time is running time. The Measure pulldown picks the metric
+and how quality shows in one go (Time – Quality Time / Percent, Distance – Quality Miles /
+Percent, Elevation), stored as `?metric=` and `?quality=percent`. The log's filters are saved in
+the browser (`endurain:trainingLog:settings`, cleared on logout) and restored when the page is
+opened without any; a link that names a filter wins. Safari draws a native `<select>` shorter
+than the menu buttons beside it unless it has `appearance-none` (upstream's `Select` doesn't, so
+every native select in the app is short there); `TrainingLogSelect.vue` adds it for the log.
 
 **Work intervals (the activity page's Workout tab).** For a structured session, the Workout tab
 shows the laps grouped as Garmin's Intervals tab does with its step filter on Run, instead of
