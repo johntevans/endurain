@@ -129,7 +129,7 @@ the schema (see `backend/tests/homelab/test_activity_tags.py`).
 
 | Table | Holds | Revision |
 |---|---|---|
-| `homelab.activity_tags` | Activity tags: `(activity_id → activities.id ON DELETE CASCADE, tag ∈ race/workout/long_run/nsm_short/nsm_medium/nsm_long, created_at)`, PK `(activity_id, tag)` | `hl0001`, CHECK widened by `hl0002` |
+| `homelab.activity_tags` | Activity tags: `(activity_id → activities.id ON DELETE CASCADE, tag ∈ race/workout/long_run/nsm_short/nsm_medium/nsm_long/daniels_2q, created_at)`, PK `(activity_id, tag)` | `hl0001`, CHECK widened by `hl0002` and `hl0008` |
 | `homelab.lap_intensity_overrides` | The owner's lap intensity corrections: `(lap_id → activity_laps.id ON DELETE CASCADE, intensity ∈ FIT's active/interval/warmup/cooldown/recovery/rest/other, updated_at)`, PK `lap_id` | `hl0003` |
 | `homelab.training_load_settings` | The owner's Intervals.icu thresholds: `(user_id → users.id ON DELETE CASCADE, resting_hr, threshold_hr, max_hr, threshold_pace s/km, updated_at)`, PK `user_id` | `hl0004` |
 | `homelab.activity_loads` | Cache of each activity's training load: `(activity_id → activities.id ON DELETE CASCADE, load, source ∈ pace/hr/none, pace_load, hr_load, activity_type, computed_at)`, PK `activity_id` | `hl0004` |

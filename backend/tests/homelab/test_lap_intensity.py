@@ -191,20 +191,21 @@ class TestTrainingLogQuality:
         result = training_log_crud.get_training_log_activities(OWNER, date(2026, 10, 12), date(2026, 10, 18), db)
         return {item.id: (item.quality_time, item.quality_distance) for item in result}
 
-    def test_only_race_workout_and_nsm_sessions_have_quality(self, db):
+    def test_only_race_workout_nsm_and_2q_sessions_have_quality(self, db):
         _seed(
             db,
-            *[_activity(i, START + timedelta(hours=i)) for i in range(1, 7)],
+            *[_activity(i, START + timedelta(hours=i)) for i in range(1, 8)],
         )
         _seed(
             db,
-            *[_lap(10 + i, i, "active", 10, 2000) for i in range(1, 7)],
+            *[_lap(10 + i, i, "active", 10, 2000) for i in range(1, 8)],
             ActivityTag(activity_id=1, tag="workout"),
             ActivityTag(activity_id=2, tag="race"),
             ActivityTag(activity_id=3, tag="nsm_medium"),
             ActivityTag(activity_id=4, tag="long_run"),
             ActivityTag(activity_id=5, tag="long_run"),
             ActivityTag(activity_id=5, tag="workout"),
+            ActivityTag(activity_id=7, tag="daniels_2q"),
         )
 
         quality = self._log(db)
@@ -216,6 +217,7 @@ class TestTrainingLogQuality:
             4: (0, 0),
             5: (600, 2000),
             6: (0, 0),
+            7: (600, 2000),
         }
 
     def test_tagged_session_without_laps_counts_whole(self, db):

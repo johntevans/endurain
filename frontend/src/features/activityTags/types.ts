@@ -1,5 +1,5 @@
 /**
- * Homelab fork: activity tags (Race, Workout, Long Run, NSM Short/Medium/Long).
+ * Homelab fork: activity tags (Race, Workout, Long Run, NSM Short/Medium/Long, 2Q).
  *
  * Wire shapes from the generated OpenAPI schema; the backend lives in
  * `backend/app/homelab/activity_tags` and stores tags in the fork-owned

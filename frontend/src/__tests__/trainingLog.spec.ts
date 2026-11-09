@@ -295,6 +295,7 @@ describe('training log circles and numbers', () => {
     expect(circleStyle(['race', 'workout', 'long_run'])).toBe('race')
     expect(circleStyle(['long_run', 'workout'])).toBe('workout')
     expect(circleStyle(['nsm_medium'])).toBe('workout')
+    expect(circleStyle(['long_run', 'daniels_2q'])).toBe('workout')
     expect(circleStyle(['long_run'])).toBe('long')
     expect(circleStyle([])).toBe('base')
   })

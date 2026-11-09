@@ -13,10 +13,11 @@ class ActivityTagKey(StrEnum):
     so a later Strava-sourced value can be compared against the user's own
     tags without a mapping table. The ``nsm_*`` tags mark Norwegian Singles
     Method sub-threshold sessions by rep length: short 2-4 min, medium
-    5-7 min, long 8 min and up.
+    5-7 min, long 8 min and up. ``daniels_2q`` marks one of the two quality
+    sessions of a week in Jack Daniels' 2Q plans (Daniels' Running Formula).
 
     Adding a key also needs a fork migration widening the table's CHECK
-    constraint (see ``hl0002_nsm_activity_tags``).
+    constraint (see ``hl0008_daniels_2q_activity_tag``).
     """
 
     RACE = "race"
@@ -25,6 +26,7 @@ class ActivityTagKey(StrEnum):
     NSM_SHORT = "nsm_short"
     NSM_MEDIUM = "nsm_medium"
     NSM_LONG = "nsm_long"
+    DANIELS_2Q = "daniels_2q"
 
 
 TAG_ORDER: dict[str, int] = {tag.value: index for index, tag in enumerate(ActivityTagKey)}

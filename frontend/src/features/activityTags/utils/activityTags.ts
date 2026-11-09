@@ -4,7 +4,7 @@ import type { BadgeVariants } from '@/components/ui/badge'
 
 /**
  * The fixed tag set in display order (Race, Workout, Long Run, then the
- * Norwegian Singles Method sessions by rep length), with each
+ * Norwegian Singles Method sessions by rep length, then Daniels' 2Q), with each
  * tag's label key and badge style. The backend accepts exactly these keys.
  */
 export const ACTIVITY_TAGS = [
@@ -14,6 +14,7 @@ export const ACTIVITY_TAGS = [
   { key: 'nsm_short', labelKey: 'activityTags.labels.nsmShort', variant: 'outline' },
   { key: 'nsm_medium', labelKey: 'activityTags.labels.nsmMedium', variant: 'outline' },
   { key: 'nsm_long', labelKey: 'activityTags.labels.nsmLong', variant: 'outline' },
+  { key: 'daniels_2q', labelKey: 'activityTags.labels.daniels2q', variant: 'outline' },
 ] as const satisfies ReadonlyArray<{
   key: ActivityTagKey
   labelKey: string

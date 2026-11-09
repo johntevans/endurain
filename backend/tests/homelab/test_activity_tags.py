@@ -101,6 +101,7 @@ class TestSchema:
             "nsm_short",
             "nsm_medium",
             "nsm_long",
+            "daniels_2q",
         ]
         assert sort_tags({t.value for t in reversed(ActivityTagKey)}) == list(ActivityTagKey)
 
@@ -240,7 +241,7 @@ class TestListFilter:
         _tag(db, 2, "race")
         _tag(db, 3, "long_run", "workout")
         _tag(db, 4, "race", "long_run", "workout")
-        _tag(db, 5, "workout", "nsm_short")
+        _tag(db, 5, "workout", "nsm_short", "daniels_2q")
         _tag(db, 6, "race")  # another user's
         return db
 
@@ -264,6 +265,7 @@ class TestListFilter:
             (["nsm_short"], [5]),
             (["nsm_short", "workout"], [5]),
             (["nsm_short", "race"], []),
+            (["daniels_2q"], [5]),
             (None, [5, 4, 3, 2, 1]),
             ([], [5, 4, 3, 2, 1]),
         ],
@@ -359,7 +361,7 @@ class TestRoutes:
 
     @pytest.mark.parametrize(
         "body",
-        [{"tags": ["tempo"]}, {"tags": ["race"] * 7}, {}, {"tags": [], "extra": 1}],
+        [{"tags": ["tempo"]}, {"tags": ["race"] * 8}, {}, {"tags": [], "extra": 1}],
     )
     def test_put_validates_body(self, mock_db, body):
         assert TestClient(_build_app(mock_db)).put("/homelab/activity_tags/4", json=body).status_code == 422

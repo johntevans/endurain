@@ -41,6 +41,7 @@ QUALITY_TAGS: frozenset[str] = frozenset(
         ActivityTagKey.NSM_SHORT,
         ActivityTagKey.NSM_MEDIUM,
         ActivityTagKey.NSM_LONG,
+        ActivityTagKey.DANIELS_2Q,
     }
 )
 

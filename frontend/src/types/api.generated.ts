@@ -6093,13 +6093,14 @@ export interface components {
          *     so a later Strava-sourced value can be compared against the user's own
          *     tags without a mapping table. The ``nsm_*`` tags mark Norwegian Singles
          *     Method sub-threshold sessions by rep length: short 2-4 min, medium
-         *     5-7 min, long 8 min and up.
+         *     5-7 min, long 8 min and up. ``daniels_2q`` marks one of the two quality
+         *     sessions of a week in Jack Daniels' 2Q plans (Daniels' Running Formula).
          *
          *     Adding a key also needs a fork migration widening the table's CHECK
-         *     constraint (see ``hl0002_nsm_activity_tags``).
+         *     constraint (see ``hl0008_daniels_2q_activity_tag``).
          * @enum {string}
          */
-        ActivityTagKey: "race" | "workout" | "long_run" | "nsm_short" | "nsm_medium" | "nsm_long";
+        ActivityTagKey: "race" | "workout" | "long_run" | "nsm_short" | "nsm_medium" | "nsm_long" | "daniels_2q";
         /**
          * ActivityTagsRead
          * @description Tags of one activity.

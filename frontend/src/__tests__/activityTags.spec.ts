@@ -64,6 +64,7 @@ describe('activity tag utils', () => {
       'nsm_long',
     ])
     expect(parseActivityTagsQuery('nsm_medium,workout')).toEqual(['workout', 'nsm_medium'])
+    expect(sortActivityTags(['daniels_2q', 'nsm_long'])).toEqual(['nsm_long', 'daniels_2q'])
   })
 
   it('round-trips the URL query param and ignores junk', () => {
@@ -198,6 +199,7 @@ describe('ActivityTagCheckboxGroup', () => {
       'NSM Short',
       'NSM Medium',
       'NSM Long',
+      '2Q',
     ])
     expect((wrapper.find('input[data-tag="long_run"]').element as HTMLInputElement).checked).toBe(
       true,

@@ -12,7 +12,8 @@ class ActivityTag(HomelabBase):
     """One tag on one activity.
 
     The table is created by ``homelab/alembic/versions/hl0001_activity_tags.py``
-    (its CHECK widened by ``hl0002_nsm_activity_tags.py``), which also adds the foreign key to ``activities.id`` (ON DELETE CASCADE).
+    (its CHECK widened by ``hl0002_nsm_activity_tags.py`` and
+    ``hl0008_daniels_2q_activity_tag.py``), which also adds the foreign key to ``activities.id`` (ON DELETE CASCADE).
     The FK is not declared here because upstream's ``activities`` table is in
     a different ``MetaData`` (see ``homelab.database``).
 
@@ -25,7 +26,7 @@ class ActivityTag(HomelabBase):
     __tablename__ = "activity_tags"
     __table_args__ = (
         CheckConstraint(
-            "tag IN ('race', 'workout', 'long_run', 'nsm_short', 'nsm_medium', 'nsm_long')",
+            "tag IN ('race', 'workout', 'long_run', 'nsm_short', 'nsm_medium', 'nsm_long', 'daniels_2q')",
             name="activity_tags_tag_check",
         ),
         # The list filter looks activities up by tag.

@@ -341,13 +341,13 @@ export function filterFamilies(filter: SportFilter): SportFamily[] {
 
 /**
  * How an activity's circle is drawn, from its tags: a race stands out most,
- * then workouts (any NSM session is a workout), then long runs.
+ * then workouts (any NSM or 2Q session is a workout), then long runs.
  */
 export function circleStyle(tags: readonly ActivityTagKey[]): CircleStyle {
   if (tags.includes('race')) {
     return 'race'
   }
-  if (tags.some((tag) => tag === 'workout' || tag.startsWith('nsm_'))) {
+  if (tags.some((tag) => tag === 'workout' || tag === 'daniels_2q' || tag.startsWith('nsm_'))) {
     return 'workout'
   }
   if (tags.includes('long_run')) {
