@@ -590,6 +590,11 @@ waits for healthy, lists the migrations that ran and any new startup errors, and
 hostnames. `homelab/deploy <commit>` deploys or rolls back to that commit's image, and
 `--dry-run` checks without changing anything. It refuses to run if production's compose file
 has drifted from homelab-ops. In a Claude session, `/deploy-homelab` wraps it.
+It also stops if `git pull --ff-only` fails in the homelab-ops checkout, which another
+session's uncommitted edit to a file the incoming commits touch is enough to cause. Don't
+touch that edit: point the script at a fresh clone instead
+(`HOMELAB_OPS=<clone> homelab/deploy ...`), which commits and pushes to `main` the same way.
+That is how v0.20.2 was deployed on 2026-11-18.
 
 **If a push builds nothing** (deploy says "no image build for <sha>", and the commit has no
 workflow runs at all), GitHub may have disabled workflows on the fork "due to the scale of

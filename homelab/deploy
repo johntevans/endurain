@@ -91,8 +91,10 @@ fi
 
 base=$(git -C "$ROOT" describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-homelab*' "$sha")
 tag="$base-homelab-${sha::7}"
-digest=$(docker buildx imagetools inspect "$IMAGE:$tag" 2>/dev/null | awk '/^Digest:/ {print $2}')
-[ -n "$digest" ] || die "$IMAGE:$tag not found in the registry"
+# `|| true`: with pipefail a failed lookup would end the script here, before die can
+# say why (2026-11-18, when CI had named the image after the previous upstream tag).
+digest=$(docker buildx imagetools inspect "$IMAGE:$tag" 2>/dev/null | awk '/^Digest:/ {print $2}' || true)
+[ -n "$digest" ] || die "$IMAGE:$tag not found in the registry; if CI named it after an older upstream tag, push the merged tag to origin and re-run the build (homelab/README.md -> Branches)"
 new_ref="$IMAGE:$tag@$digest"
 echo "Commit:  $(git -C "$ROOT" log -1 --format='%h %s' "$sha")"
 echo "Image:   $new_ref"
