@@ -50,6 +50,57 @@ commit in `org.opencontainers.image.revision` — and needs a force-push. Mergin
 deployed revision reachable. Read the release notes first; a release that says "back up your
 DB" means a schema migration (see Database below).
 
+### Upstream v0.20
+
+`homelab` took upstream **v0.20.2** on 2026-11-18 (with v0.19.4, v0.20.0 and v0.20.1). v0.20.0
+moved every domain package under `backend/app/modules/` (`modules.activities.activity.models`,
+not `activities.activity.models`) and split activities into services, events and background
+jobs. What that changed for the fork:
+
+- **Logging.** `core.logger.print_to_log` is gone; fork modules log through
+  `logger = core_logger.get_logger(__name__)`. Production still writes JSON lines with the same
+  messages to `logs/app.log`, which homelab-ops' `hc-endurain-garmin.sh` reads.
+- **httpx.** Upstream dropped Apprise, which was what put `httpx` in the image, and uses
+  `httpx2`. The Eight Sleep and Withings clients `import httpx2 as httpx`.
+- **Activity lists.** `GET /activities` and `/activities/users/{id}` return a page with its
+  total; the separate count endpoint is gone. `?tag=` is applied in
+  `_apply_user_activity_filters`, which every list, page and count query shares.
+- **Visibility.** `_visible_to_requester_condition` now takes the requester's accepted followee
+  ids (`followers_integration.list_accepted_followee_ids`), not a user id. Passing a user id
+  raises nothing and answers wrongly.
+- **Laps are paged** (200 a page by default). GAP is attached in the laps service by
+  `homelab/lap_gap.py`, anchored to the activity's first lap so a later page still lines up
+  with the streams.
+- Upstream's architecture test `test_outsiders_use_the_published_surface` exempts `homelab.*`,
+  which reads upstream tables by design (Database below).
+- **Backend tests**: upstream pins uv 0.12.24 (`required-version`), so with another uv run
+  `uvx uv@0.12.24 sync ...`. Run pytest from `backend/`, not `backend/app`: the architecture
+  tests use paths relative to it.
+
+**Deploying the first v0.20 image** was tried on a copy of production (the 2026-11-18 dump and
+`backend/data`) on an isolated Docker network:
+
+- **`.env` first.** Delete `RATE_LIMIT_STORAGE_URI` and `AUTH_SECURITY_STORAGE_URI`: v0.20
+  refuses to start while either is set. Do not move the value to `REDIS_URL`, as upstream's
+  message suggests: the default image has no Redis client and stops with `'redis' prerequisite
+  not available` (that needs `--build-arg PYTHON_EXTRAS=distributed` in the CI build). Without
+  Redis, rate limits and login lockout live in process memory, the same protection with one
+  worker but reset on restart, and the `redis` service is unused. `homelab/deploy` refuses to
+  run while any of these, or `REDIS_URL`, are in `.env`.
+- **It rewrites files, not just the DB.** Upstream's schema migrations took about 1 s and the
+  fork's chain ran nothing (still `hl0008`), but data migration 8 converted the 1,456 activity
+  thumbnails in `backend/data` to WebP in 2 min 22 s. Startup completed after 2 min 25 s, with
+  no warnings or errors. Copy `backend/data` first; on macmini an APFS clone is instant:
+  `cp -cR ~/Server/endurain/backend/data ~/Server/endurain/backend/data.pre-v0.20`.
+- **Rollback.** Upstream's `ghcr.io/endurain-project/endurain:v0.20.2@sha256:045af8835f82df64203b4e025baa2c603512da9c2e17babd0044533452cc20d6`
+  started on the migrated copy in 8 s. Going back to any v0.19.3-based image, the fork's
+  included, needs the pre-deploy dump restored AND `backend/data` put back (upstream's release
+  notes say the same).
+- **Reverse geocoding.** v0.20 adds an hourly backfill for GPS activities with no city, town or
+  country: 290 in the copy, looked up at Nominatim's 1 request a second, 200 an hour.
+- Since v0.20.2 a login without the `X-Client-Type` header is a 400, not a 401, so the deploy
+  probe sends one.
+
 **Bug fixes that upstream would want go upstream.** Branch from `upstream/master`, open a PR
 against endurain-project, and the fix comes back with the next release tag; every one merged is
 one fewer diff to carry. Candidates found so far, documented in homelab-ops
@@ -184,7 +235,7 @@ and `frontend/src/features/trainingLoad/`.
 - **Rules, matched to the owner's Intervals.icu account** (Run load priority "Pace, HR, Power",
   threshold pace 7:00/mi, threshold HR 159, max 175, resting 43). Runs (types 1, 2, 3, 34, 40)
   score **pace load** = timer hours × (GAP speed ÷ threshold speed)² × 100, with GAP from the
-  Strava-curve model in `activities/activity_laps/gap.py` over the moving samples. Timer time,
+  Strava-curve model in `modules/activities/activity_laps/gap.py` over the moving samples. Timer time,
   not moving time: Intervals counts standing with the timer running. Other sports score **HR
   load** (HRSS: per-second Banister TRIMP ÷ one hour at threshold HR × 100). Workout, yoga,
   strength and physical therapy show **Load 0** with the HR load beside it, as Intervals does.
@@ -252,7 +303,7 @@ v0.19.3), so the fork's own types start at **1001**. Taking upstream's next numb
 later release reuse it, and every activity already stored with it would silently change type.
 No migration is involved; the id only needs adding to the two mappings, both marked
 `homelab fork`: `ACTIVITY_ID_TO_NAME` / `ACTIVITY_NAME_TO_ID` in
-`backend/app/activities/activity/utils.py` and `ACTIVITY_TYPE_LABEL_KEYS` (plus
+`backend/app/modules/activities/activity/constants.py` and `ACTIVITY_TYPE_LABEL_KEYS` (plus
 `NON_DISTANCE_TYPES` where it applies) in `frontend/src/features/activities/utils/activityType.ts`,
 with an English label in `activities.json` (other locales fall back to it). Tests are in
 `backend/tests/homelab/test_activity_types.py` and `frontend/src/__tests__/homelabActivityTypes.spec.ts`.
@@ -269,7 +320,7 @@ On a rollback to vanilla Endurain these activities show as "Workout" in the fron
 Upstream's FIT importer ignores the record's `enhanced_speed` and derives speed from the
 distance between consecutive 1 s GPS fixes, which is mostly position error: on a 9:23/mi run
 the samples swing from 7:00 to 14:12 (1st–99th percentile) where the watch's own speed stays
-within 8:33–11:03. The fork's importer (`_handle_record_frame` in `utils_fit.py`, marked
+within 8:33–11:03. The fork's importer (`_handle_record_frame` in `fit_utils.py`, marked
 `homelab fork`) stores the device speed and keeps GPS only as the fallback. Indoor runs with a
 device speed now also get a speed/pace stream.
 
@@ -335,7 +386,7 @@ notices.
   none).
 - **The dashboard showed no Eight Sleep sleep at all** until `hl0005`'s release. Upstream's
   `/health/stats/daily` built its sleep block only when `hrv_status` was set, which only
-  Garmin fills. The condition is now any sleep row (marked `homelab fork` in `health/router.py`).
+  Garmin fills. The condition is now any sleep row (marked `homelab fork` in `modules/health/router.py`).
 - **Daytime sessions are skipped**: a main session starting 06:00–18:00 local is not imported.
   On days with no overnight session Eight Sleep promotes whatever else it recorded to "main",
   and in October 2026 that was someone else on the bed (avg HR ~75 against ~47, scoring
@@ -352,11 +403,11 @@ notices.
   table empty (HRV in `hl0005`, heart rate in `hl0006`), so the first start after each of those
   releases refills that table for every night.
 - **Garmin stands aside.** When Eight Sleep is configured, upstream's Garmin health sync skips
-  its sleep fetch (marked `homelab fork` in `garmin/health_utils.py`). Both write one row per
+  its sleep fetch (marked `homelab fork` in `modules/garmin/health_utils.py`). Both write one row per
   date and the last writer would win. Weight and steps still come from Garmin.
 - **Upstream edits**: the `eight_sleep` value in the sleep `Source` enum (`health_sleep/schema.py`;
   without it upstream's read schema rejects the rows), the Garmin gate above, job
-  registration in `main.py`, the dashboard condition in `health/router.py`, and for the two
+  registration in `main.py`, the dashboard condition in `modules/health/router.py`, and for the two
   zones their routes (`router/index.ts`, including pointing `health-rhr` at the fork view),
   the HRV nav entry (`healthNav.ts`), the HRV dashboard tile (`HealthDashboardView.vue`) and
   the translation namespace (`i18n/index.ts`). The translation file `sleepMetrics.json` is
@@ -403,7 +454,7 @@ official OAuth 2.0 API, so no password is stored:
 - **Skipped**: groups with `attrib` 1 ("measured, but ambiguous whose": a guest on the scale).
   Hand entries in the Withings app (`attrib` 2) are kept.
 - **Garmin stands aside** once Withings is configured and linked: upstream's Garmin
-  body-composition import is skipped (marked `homelab fork` in `garmin/health_utils.py`), as
+  body-composition import is skipped (marked `homelab fork` in `modules/garmin/health_utils.py`), as
   Garmin sleep is for Eight Sleep. The `withings` value in the weight `Source` enum is the
   other upstream edit. **Rolling back to vanilla** needs `source = 'withings'` weight rows
   deleted first, as with Eight Sleep's.
@@ -560,4 +611,5 @@ The steps by hand:
 
 **Rollback** is the previous digest in the compose file, or upstream's
 `ghcr.io/endurain-project/endurain:<tag>@<digest>`, which works only while the Database rules
-above have been kept.
+above have been kept. Not back across an upstream schema change, though: from a v0.20 image to
+a v0.19.3-based one is a restore of the dump and `backend/data` (Upstream v0.20 above).

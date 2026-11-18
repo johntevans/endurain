@@ -1,4 +1,4 @@
-"""All homelab fork API routes, registered with one line in ``core/routes.py``."""
+"""All homelab fork API routes, registered with one line in ``api.py``."""
 
 from fastapi import APIRouter, Depends
 

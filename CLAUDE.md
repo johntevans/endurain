@@ -25,6 +25,8 @@ first**: branches, the database rule, the dev stack and how a change reaches pro
   `mac-mini/endurain/README.md`, cloned at `~/code/homelab-ops`.
 - Backend tests (~30 s, 4000+):
   `cd backend && uv sync --python 3.13 --frozen --no-dev --group test --no-install-project && uv run --no-sync pytest`.
+  Upstream pins uv 0.12.24; with any other uv, use `uvx uv@0.12.24` in place of `uv`. Run from
+  `backend/`, not `backend/app`.
   3.13 matches the image; they need Homebrew `libmagic` (installed). Frontend:
   `docker exec endurain-dev-frontend npx vitest run` and `npx vue-tsc --build` (Node is not
   installed on this host; the dev frontend container has it).
