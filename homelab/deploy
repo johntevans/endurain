@@ -25,7 +25,9 @@ REMOTE_DIR='~/Server/endurain'
 REMOTE_PATH='export PATH=$PATH:/usr/local/bin:/opt/homebrew/bin'
 DUMP_HOOK='~/Server/kopia/hooks/pre-endurain-pgdump.sh'
 PROBE_HOSTS=(https://tempo.thegainzlab.dev http://192.168.4.82:8091)
-HEALTH_TIMEOUT=180
+# v0.20.0's thumbnail data migration took 2.5 min on a copy of production, and the
+# image's healthcheck only polls every 30 s.
+HEALTH_TIMEOUT=420
 # Startup errors that predate the fork and say nothing about the deploy (see homelab-ops README).
 KNOWN_ERRORS='Display name is not set'
 
@@ -104,6 +106,12 @@ old_ref=$(grep -oE "image: +$IMAGE:[^[:space:]]+|image: +ghcr.io/endurain-projec
 [ "$(printf '%s\n' "$old_ref" | grep -c .)" = 1 ] || die "expected exactly one Endurain image line in $COMPOSE_REL"
 ssh -o BatchMode=yes "$SSH_HOST" "cat $REMOTE_DIR/docker-compose.yml" | diff -q - "$compose" >/dev/null ||
   die "production's docker-compose.yml differs from homelab-ops; reconcile before deploying (ssh $SSH_HOST cat $REMOTE_DIR/docker-compose.yml | diff - $compose)"
+# v0.20.0 refuses to start while these are set, and the default image has no Redis
+# client for REDIS_URL either; see homelab/README.md -> Upstream v0.20.
+if [ "$(printf '%s\n' v0.20.0 "$base" | sort -V | head -1)" = v0.20.0 ]; then
+  retired=$(ssh -o BatchMode=yes "$SSH_HOST" "grep -oE '^(RATE_LIMIT_STORAGE_URI|AUTH_SECURITY_STORAGE_URI|REDIS_URL|JAEGER_[A-Z_]+)=' $REMOTE_DIR/.env" || true)
+  [ -z "$retired" ] || die "production's .env still sets $(printf '%s' "$retired" | tr '\n' ' ')which $base will not start with; see homelab/README.md -> Upstream v0.20"
+fi
 running=$(ssh -o BatchMode=yes "$SSH_HOST" "$REMOTE_PATH; docker inspect endurain --format '{{.Config.Image}}'" 2>/dev/null || true)
 echo "Pinned:  $old_ref"
 echo "Running: ${running:-<no endurain container>}"
@@ -160,7 +168,9 @@ step "Probing"
 failed=0
 for h in "${PROBE_HOSTS[@]}"; do
   settings=$(curl -s -o /dev/null -w '%{http_code}' "$h/api/v1/public/server_settings")
-  login=$(curl -s -o /dev/null -w '%{http_code}' -X POST -d 'username=deploy-probe&password=x' "$h/api/v1/auth/login")
+  # Since v0.20.2 a login without X-Client-Type is a 400, not a 401.
+  login=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'X-Client-Type: web' \
+    -d 'username=deploy-probe&password=x' "$h/api/v1/auth/login")
   echo "$h: server_settings $settings, rejected login $login"
   [ "$settings" = 200 ] && [ "$login" = 401 ] || failed=1
 done
