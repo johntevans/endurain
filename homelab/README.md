@@ -42,8 +42,14 @@ Contributions to upstream go only through a pull request opened on purpose.
 
 ```sh
 git fetch upstream --tags
-git checkout homelab && git merge v0.19.4     # resolve, run tests, push
+git checkout homelab && git merge v0.20.2     # resolve, run tests, push
+git push origin v0.20.2                       # the tag too: CI names the image after it
 ```
+
+CI's checkout sees only the fork's tags, so a merged upstream tag that is not pushed to
+`origin` builds the image under the previous one: the first v0.20.2 build was pushed as
+`v0.19.3-homelab-35f1ca2`, and `homelab/deploy`, which works the tag out locally, could not
+find it. Push release tags only, not betas: `git describe` would pick those up too.
 
 Rebasing rewrites the commits that deployed images were built from — each image carries its
 commit in `org.opencontainers.image.revision` — and needs a force-push. Merging keeps every
