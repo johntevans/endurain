@@ -8,7 +8,7 @@ against a real in-memory SQLite database with the ``homelab`` schema attached
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -17,9 +17,9 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-import activities.activity.crud as activities_crud
-import activities.activity.models as activities_models
-import followers.models as followers_models
+import modules.activities.activity.crud as activities_crud
+import modules.activities.activity.models as activities_models
+import modules.followers.models as followers_models
 from homelab.activity_tags import crud as tags_crud
 from homelab.activity_tags import filters as tags_filters
 from homelab.activity_tags.models import ActivityTag
@@ -180,7 +180,7 @@ class TestVisibility:
                 _activity(5, visibility=0),  # public, untagged
             ]
         )
-        db.add(followers_models.Follower(follower_id=FOLLOWER, following_id=OWNER, is_accepted=True))
+        db.add(followers_models.Follower(follower_id=FOLLOWER, followee_id=OWNER, status="accepted"))
         db.commit()
         for activity_id in (1, 2, 3, 4):
             _tag(db, activity_id, "race")
@@ -205,14 +205,14 @@ class TestVisibility:
     def test_unknown_ids_and_duplicates(self, tagged):
         assert self._ids(tags_crud.get_visible_activities_tags([5, 1, 5, 99], STRANGER, tagged)) == [5, 1]
 
-    @patch("homelab.activity_tags.crud.server_settings_utils.get_server_settings_or_404")
+    @patch("homelab.activity_tags.crud.server_settings_integration.public_shareable_links_enabled")
     def test_public_link_sees_only_public(self, mock_settings, tagged):
-        mock_settings.return_value.public_shareable_links = True
+        mock_settings.return_value = True
         assert self._ids(tags_crud.get_public_activities_tags([1, 2, 3, 4], tagged)) == [1]
 
-    @patch("homelab.activity_tags.crud.server_settings_utils.get_server_settings_or_404")
+    @patch("homelab.activity_tags.crud.server_settings_integration.public_shareable_links_enabled")
     def test_public_links_disabled_sees_nothing(self, mock_settings, tagged):
-        mock_settings.return_value.public_shareable_links = False
+        mock_settings.return_value = False
         assert tags_crud.get_public_activities_tags([1], tagged) == []
 
     def test_db_errors_are_500(self, mock_db):
@@ -221,10 +221,12 @@ class TestVisibility:
             tags_crud.get_visible_activities_tags([1], OWNER, mock_db)
         assert err.value.status_code == 500
         with (
-            patch("homelab.activity_tags.crud.server_settings_utils.get_server_settings_or_404") as settings,
+            patch(
+                "homelab.activity_tags.crud.server_settings_integration.public_shareable_links_enabled",
+                return_value=True,
+            ),
             pytest.raises(HTTPException) as err,
         ):
-            settings.return_value.public_shareable_links = True
             tags_crud.get_public_activities_tags([1], mock_db)
         assert err.value.status_code == 500
 
@@ -249,8 +251,10 @@ class TestListFilter:
     def _plain_serialization(self):
         # Serialization is not under test; return the ORM rows themselves.
         with (
-            patch("activities.activity.crud.activities_utils.serialize_activity", side_effect=lambda row: row),
-            patch("activities.activity.crud.activities_utils.apply_visibility_mask"),
+            patch(
+                "modules.activities.activity.crud.activity_serializers.serialize_and_mask",
+                side_effect=lambda rows, **_: rows,
+            ),
         ):
             yield
 
@@ -272,12 +276,14 @@ class TestListFilter:
     )
     def test_list_and_count_use_and_semantics(self, tagged, tags, expected):
         page = activities_crud.get_user_activities_with_pagination(
-            OWNER, tagged, page_number=1, num_records=50, user_is_owner=True, requester_user_id=OWNER, tags=tags
+            OWNER, tagged, page_number=1, num_records=50, user_is_owner=True, tags=tags
         )
-        counted = activities_crud.get_user_activities(OWNER, tagged, tags=tags)
+        listed = activities_crud.get_user_activities(OWNER, tagged, user_is_owner=True, tags=tags)
+        counted = activities_crud.count_user_activities(OWNER, tagged, user_is_owner=True, tags=tags)
 
-        assert [a.id for a in page or []] == expected
-        assert len(counted or []) == len(expected)
+        assert [a.id for a in page] == expected
+        assert [a.id for a in listed] == expected
+        assert counted == len(expected)
 
     def test_filter_combines_with_other_filters_and_pages(self, tagged):
         page = activities_crud.get_user_activities_with_pagination(
@@ -286,15 +292,15 @@ class TestListFilter:
             page_number=2,
             num_records=1,
             user_is_owner=True,
-            requester_user_id=OWNER,
             tags=["race"],
             sort_by="start_time",
             sort_order="asc",
         )
-        assert [a.id for a in page or []] == [2]
+        assert [a.id for a in page] == [2]
 
-    def test_no_match_returns_none(self, tagged):
-        assert activities_crud.get_user_activities(5, tagged, tags=["race"]) is None
+    def test_no_match_returns_empty(self, tagged):
+        assert activities_crud.get_user_activities(5, tagged, user_is_owner=True, tags=["race"]) == []
+        assert activities_crud.count_user_activities(5, tagged, user_is_owner=True, tags=["race"]) == 0
 
     def test_apply_tag_filter_is_a_noop_without_tags(self):
         stmt = select(activities_models.Activity)
@@ -303,27 +309,16 @@ class TestListFilter:
 
 
 def _build_app(mock_db, user_id: int = OWNER) -> FastAPI:
-    import activities.activity.dependencies as act_dep
-    import activities.activity.router as activity_router
-    import auth.dependencies as auth_deps
     import core.database as core_db
-    import core.dependencies as core_dep
-    import users.users.dependencies as users_dep
+    import modules.activities.activity.router as activity_router
+    import modules.auth.dependencies as auth_deps
     from homelab.activity_tags import public_router, router
 
     app = FastAPI()
     app.include_router(router.router, prefix="/homelab/activity_tags")
     app.include_router(public_router.router, prefix="/public/homelab/activity_tags")
     app.include_router(activity_router.router, prefix="/activities")
-    for dep in [
-        auth_deps.check_scopes,
-        core_dep.validate_pagination_values,
-        users_dep.validate_user_id,
-        act_dep.validate_activity_type,
-        act_dep.validate_sort_by,
-        act_dep.validate_sort_order,
-    ]:
-        app.dependency_overrides[dep] = lambda: None
+    app.dependency_overrides[auth_deps.check_scopes] = lambda: None
     app.dependency_overrides[auth_deps.get_sub_from_access_token] = lambda: user_id
     app.dependency_overrides[core_db.get_db] = lambda: mock_db
     return app
@@ -366,28 +361,26 @@ class TestRoutes:
     def test_put_validates_body(self, mock_db, body):
         assert TestClient(_build_app(mock_db)).put("/homelab/activity_tags/4", json=body).status_code == 422
 
-    @patch("activities.activity.crud.get_user_activities_with_pagination", return_value=None)
-    def test_list_endpoint_passes_tags(self, mock_list, mock_db):
-        resp = TestClient(_build_app(mock_db)).get(
-            "/activities/user/1/page_number/1/num_records/10?tag=race&tag=long_run"
-        )
+    @pytest.mark.parametrize("path", ["/activities", "/activities/users/1"])
+    def test_list_endpoints_pass_tags_to_page_and_total(self, mock_db, path):
+        # Upstream v0.20 answers the list and its total in one paged call.
+        with (
+            patch("modules.activities.activity.crud.get_user_activities_with_pagination", return_value=[]) as listed,
+            patch("modules.activities.activity.crud.count_user_activities", return_value=0) as counted,
+            patch("modules.activities.activity.service._followees_of", return_value=[]),
+        ):
+            resp = TestClient(_build_app(mock_db)).get(f"{path}?tag=race&tag=long_run")
         assert resp.status_code == 200
-        assert mock_list.call_args.kwargs["tags"] == [ActivityTagKey.RACE, ActivityTagKey.LONG_RUN]
+        assert listed.call_args.kwargs["tags"] == [ActivityTagKey.RACE, ActivityTagKey.LONG_RUN]
+        assert counted.call_args.kwargs["tags"] == [ActivityTagKey.RACE, ActivityTagKey.LONG_RUN]
 
-    @patch("activities.activity.crud.get_user_activities", return_value=[MagicMock(), MagicMock()])
-    def test_count_endpoint_passes_tags(self, mock_get, mock_db):
-        resp = TestClient(_build_app(mock_db)).get("/activities/number?tag=workout")
-        assert resp.status_code == 200
-        assert resp.json() == 2
-        assert mock_get.call_args.kwargs["tags"] == [ActivityTagKey.WORKOUT]
-
-    def test_list_and_count_reject_unknown_tags(self, mock_db):
+    def test_list_endpoints_reject_unknown_tags(self, mock_db):
         client = TestClient(_build_app(mock_db))
-        assert client.get("/activities/number?tag=tempo").status_code == 422
-        assert client.get("/activities/user/1/page_number/1/num_records/10?tag=tempo").status_code == 422
+        assert client.get("/activities?tag=tempo").status_code == 422
+        assert client.get("/activities/users/1?tag=tempo").status_code == 422
 
     def test_fork_routes_are_registered_in_the_api_router(self):
-        from core.routes import router as api_router
+        from api import router as api_router
 
         app = FastAPI()
         app.include_router(api_router)

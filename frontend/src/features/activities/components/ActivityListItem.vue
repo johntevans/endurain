@@ -13,6 +13,7 @@ import type { ActivityTagKey } from '@/features/activityTags/types'
 
 import { NA_METRIC } from '@/features/activities/utils/activityListColumns'
 import ActivityTagBadges from '@/features/activityTags/components/ActivityTagBadges.vue'
+import { formatZonedDateTime } from '@/utils/datetime'
 import {
   activityTypeIsDistanceBased,
   activityTypeUsesPace,
@@ -54,16 +55,12 @@ const isDistanceBased = computed(() => activityTypeIsDistanceBased(props.activit
 const usesPace = computed(() => activityTypeUsesPace(props.activity.activityType))
 
 /** The localized start date, or `null` when the activity has no/invalid time. */
-const dateLabel = computed(() => {
-  if (!props.activity.startTime) {
-    return null
-  }
-  const date = new Date(props.activity.startTime)
-  if (Number.isNaN(date.getTime())) {
-    return null
-  }
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium' }).format(date)
-})
+const dateLabel = computed(
+  () =>
+    formatZonedDateTime(props.activity.startTime, props.activity.timezone, locale.value, {
+      dateStyle: 'medium',
+    }) || null,
+)
 
 /** "City, Country" (whichever parts are present), or `null`. */
 const locationLabel = computed(() => {

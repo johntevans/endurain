@@ -1,7 +1,7 @@
 """Rebuild FIT activities' speed and pace streams from the device's own speed.
 
 Before the fork's importer change (``_handle_record_frame`` in
-``activities/activity_file_import/utils_fit.py``), FIT imports derived speed
+``modules/activities/activity_file_import/fit_utils.py``), FIT imports derived speed
 from the distance between consecutive 1 s GPS fixes, so the stored speed (5)
 and pace (6) streams are dominated by GPS position error. This re-reads each
 activity's stored ``<id>.fit`` with the current importer and rewrites those two
@@ -27,11 +27,12 @@ import fitdecode
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-import activities.activity.models as activities_models
-import activities.activity_file_import.utils as file_import_utils
-import activities.activity_file_import.utils_fit as utils_fit
-import activities.activity_streams.constants as streams_constants
-import activities.activity_streams.models as streams_models
+import modules.activities.activity.models as activities_models
+import modules.activities.activity_file_import.fit_frames as fit_frames
+import modules.activities.activity_file_import.fit_utils as utils_fit
+import modules.activities.activity_file_import.parser_utils as file_import_utils
+import modules.activities.activity_streams.constants as streams_constants
+import modules.activities.activity_streams.models as streams_models
 
 SPEED = streams_constants.STREAM_TYPE_SPEED
 PACE = streams_constants.STREAM_TYPE_PACE
@@ -50,8 +51,8 @@ class FitSpeedStreams:
 
 def _has_device_speed(frame) -> bool:
     return (
-        utils_fit.get_value_from_frame(frame, "enhanced_speed") is not None
-        or utils_fit.get_value_from_frame(frame, "speed") is not None
+        fit_frames.get_value_from_frame(frame, "enhanced_speed") is not None
+        or fit_frames.get_value_from_frame(frame, "speed") is not None
     )
 
 

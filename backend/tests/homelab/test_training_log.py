@@ -17,7 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-import activities.activity.models as activities_models
+import modules.activities.activity.models as activities_models
 from homelab.activity_tags.models import ActivityTag
 from homelab.activity_tags.schema import ActivityTagKey
 from homelab.database import HomelabBase
@@ -203,8 +203,8 @@ class TestGetTrainingLogRange:
 
 
 def _build_app(mock_db, user_id: int = OWNER) -> FastAPI:
-    import auth.dependencies as auth_deps
     import core.database as core_db
+    import modules.auth.dependencies as auth_deps
     from homelab.training_log import router
 
     app = FastAPI()
@@ -261,7 +261,7 @@ class TestRoutes:
         mock_range.assert_called_once_with(7, mock_db)
 
     def test_routes_are_registered_in_the_api_router(self):
-        from core.routes import router as api_router
+        from api import router as api_router
 
         app = FastAPI()
         app.include_router(api_router)

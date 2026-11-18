@@ -14,7 +14,7 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-import health.health_sleep.models as health_sleep_models
+import modules.health.health_sleep.models as health_sleep_models
 from homelab.database import HomelabBase
 from homelab.eight_sleep import client as eight_sleep_client
 from homelab.eight_sleep import mapping as eight_sleep_mapping
@@ -351,11 +351,11 @@ class TestSafety:
             patch.object(eight_sleep_sync, "SessionLocal", return_value=self_db),
             patch.object(eight_sleep_sync, "_target_user_id", return_value=USER),
             patch.object(eight_sleep_client, "fetch_days", side_effect=eight_sleep_client.EightSleepError("HTTP 503")),
-            patch.object(eight_sleep_sync.core_logger, "print_to_log") as log,
+            patch.object(eight_sleep_sync, "logger") as log,
         ):
             eight_sleep_sync.sync_recent()
 
-        assert "failed" in log.call_args.args[0]
+        assert "failed" in log.error.call_args.args[0]
         assert date(2026, 10, 8) in _rows(db)
 
     def test_no_credentials_means_no_sync_and_garmin_keeps_sleep(self):
@@ -398,8 +398,8 @@ class TestMetricRoutes:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
 
-        import auth.dependencies as auth_deps
         import core.database as core_db
+        import modules.auth.dependencies as auth_deps
 
         app = FastAPI()
         app.include_router(metric_router.hrv_router, prefix="/hrv")
@@ -455,12 +455,13 @@ class TestDashboard:
             total_sleep_seconds=24210, resting_heart_rate=43, hrv_status=None, avg_skin_temp_deviation=None
         )
         with (
-            patch("health.router.health_sleep_crud.get_health_sleep_by_date_and_user_id", return_value=sleep),
-            patch("health.router.health_weight_crud.get_latest_weight_by_user_id", return_value=None),
-            patch("health.router.health_steps_crud.get_health_steps_by_date_and_user_id", return_value=None),
-            patch("health.router.health_fasting_crud.get_active_fasting_by_user_id", return_value=None),
-            patch("health.router.health_water_crud.get_health_water_by_date_and_user_id", return_value=None),
-            patch("health.router.health_poop_crud.get_health_poop_by_date_and_user_id", return_value=None),
+            patch("modules.health.router.health_sleep_crud.get_health_sleep_by_date_and_user_id", return_value=sleep),
+            patch("modules.health.router.health_weight_crud.get_latest_weight_by_user_id", return_value=None),
+            patch("modules.health.router.health_steps_crud.get_health_steps_by_date_and_user_id", return_value=None),
+            patch("modules.health.router.health_fasting_crud.get_active_fasting_by_user_id", return_value=None),
+            patch("modules.health.router.health_water_crud.get_health_water_by_date_and_user_id", return_value=None),
+            patch("modules.health.router.health_poop_crud.get_health_poop_by_date_and_user_id", return_value=None),
+            patch("modules.health.router.users_utils.user_local_today", return_value=date(2026, 10, 8)),
         ):
             response = TestClient(_build_app(mock_db)).get("/health/stats/daily", headers={"Authorization": "Bearer x"})
 

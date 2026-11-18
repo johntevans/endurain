@@ -31,8 +31,8 @@ from typing import Any
 from garminconnect.fit import FitEncoderWeight
 from sqlalchemy.orm import Session
 
-import garmin.utils as garmin_utils
-import users.users.models as users_models
+import modules.garmin.utils as garmin_utils
+import modules.users.users.models as users_models
 from homelab.withings import mapping as withings_mapping
 
 MATCH_SECONDS = 120

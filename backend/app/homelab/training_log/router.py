@@ -11,8 +11,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Security, status
 from sqlalchemy.orm import Session
 
-import auth.dependencies as auth_dependencies
 import core.database as core_database
+import modules.auth.dependencies as auth_dependencies
 from homelab.training_log import crud as training_log_crud
 from homelab.training_log import schema as training_log_schema
 

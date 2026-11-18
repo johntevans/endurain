@@ -16,7 +16,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-import activities.activity_laps.models as laps_models
+import modules.activities.activity_laps.models as laps_models
 from homelab.activity_tags.models import ActivityTag
 from homelab.database import HomelabBase
 from homelab.lap_intensity import crud as intensity_crud
@@ -242,8 +242,8 @@ class TestTrainingLogQuality:
 
 
 def _build_app(mock_db, user_id: int = OWNER) -> FastAPI:
-    import auth.dependencies as auth_deps
     import core.database as core_db
+    import modules.auth.dependencies as auth_deps
     from homelab.lap_intensity import router
 
     app = FastAPI()
@@ -288,7 +288,7 @@ class TestRoutes:
         assert TestClient(_build_app(mock_db)).put("/homelab/lap_intensity/4", json=body).status_code == 422
 
     def test_routes_are_registered_in_the_api_router(self):
-        from core.routes import router as api_router
+        from api import router as api_router
 
         app = FastAPI()
         app.include_router(api_router)

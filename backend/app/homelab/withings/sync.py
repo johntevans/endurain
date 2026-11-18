@@ -26,16 +26,18 @@ from sqlalchemy.orm import Session
 
 import core.logger as core_logger
 import core.scheduler as core_scheduler
-import health.health_weight.crud as health_weight_crud
-import health.health_weight.models as health_weight_models
-import health.health_weight.schema as health_weight_schema
-import users.users.models as users_models
+import modules.health.health_weight.crud as health_weight_crud
+import modules.health.health_weight.models as health_weight_models
+import modules.health.health_weight.schema as health_weight_schema
+import modules.users.users.models as users_models
 from core.database import SessionLocal
 from homelab.withings import client as withings_client
 from homelab.withings import garmin_push as withings_garmin_push
 from homelab.withings import mapping as withings_mapping
 from homelab.withings import tokens as withings_tokens
 from homelab.withings.models import WithingsToken
+
+logger = core_logger.get_logger(__name__)
 
 SOURCE = health_weight_schema.Source.WITHINGS.value
 RECENT_DAYS = 30
@@ -75,10 +77,9 @@ def reconcile(
     }
     ours = [d for d, row in existing.items() if row.source == SOURCE]
     if not days and ours:
-        core_logger.print_to_log(
+        logger.warning(
             f"Withings sync: empty response for {window_start}..{window_end} but "
-            f"{len(ours)} Withings rows exist there; deleting nothing",
-            "warning",
+            f"{len(ours)} Withings rows exist there; deleting nothing"
         )
         counts["refused empty"] += 1
         return counts
@@ -114,10 +115,9 @@ def _run(label: str, history: bool) -> None:
         with SessionLocal() as db:
             user_id = _target_user_id(db)
             if user_id is None or db.get(WithingsToken, user_id) is None:
-                core_logger.print_to_log(
+                logger.warning(
                     f"Withings sync ({label}) skipped: Withings is configured but not linked "
-                    "(python -m homelab.withings.cli link)",
-                    "warning",
+                    "(python -m homelab.withings.cli link)"
                 )
                 return
             token = withings_tokens.access_token(user_id, db)
@@ -146,11 +146,9 @@ def _run(label: str, history: bool) -> None:
         if ambiguous:
             counts["skipped ambiguous"] += ambiguous
         summary = ", ".join(f"{n} {k}" for k, n in sorted(counts.items())) or "nothing to do"
-        core_logger.print_to_log(
-            f"Withings sync ({label}) {window_start}..{window_end}: {len(groups)} weigh-ins fetched; {summary}"
-        )
+        logger.info(f"Withings sync ({label}) {window_start}..{window_end}: {len(groups)} weigh-ins fetched; {summary}")
     except Exception as err:
-        core_logger.print_to_log(f"Withings sync ({label}) failed: {type(err).__name__}: {err}", "error")
+        logger.error(f"Withings sync ({label}) failed: {type(err).__name__}: {err}")
         return
     if withings_garmin_push.enabled():
         _forward_to_garmin(label, user_id, groups, window_start, window_end)
@@ -163,9 +161,9 @@ def _forward_to_garmin(label: str, user_id: int, groups: list, window_start: dat
         with SessionLocal() as db:
             counts, _ = withings_garmin_push.push(user_id, groups, window_start, window_end, db)
         summary = ", ".join(f"{n} {k}" for k, n in sorted(counts.items())) or "nothing to do"
-        core_logger.print_to_log(f"Withings to Garmin ({label}) {window_start}..{window_end}: {summary}")
+        logger.info(f"Withings to Garmin ({label}) {window_start}..{window_end}: {summary}")
     except Exception as err:
-        core_logger.print_to_log(f"Withings to Garmin ({label}) failed: {type(err).__name__}: {err}", "error")
+        logger.error(f"Withings to Garmin ({label}) failed: {type(err).__name__}: {err}")
 
 
 def sync_recent() -> None:
@@ -199,7 +197,7 @@ def register_jobs() -> None:
     try:
         startup = sync_recent if _has_rows() else sync_history
     except Exception as err:
-        core_logger.print_to_log(f"Withings sync: startup check failed: {type(err).__name__}", "error")
+        logger.error(f"Withings sync: startup check failed: {type(err).__name__}")
         startup = sync_recent
     core_scheduler.scheduler.add_job(
         startup,

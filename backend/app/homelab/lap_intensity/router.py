@@ -10,8 +10,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Security
 from sqlalchemy.orm import Session
 
-import auth.dependencies as auth_dependencies
 import core.database as core_database
+import modules.auth.dependencies as auth_dependencies
 from homelab.lap_intensity import crud as intensity_crud
 from homelab.lap_intensity import schema as intensity_schema
 

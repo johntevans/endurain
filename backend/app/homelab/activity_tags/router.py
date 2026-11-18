@@ -10,9 +10,9 @@ from fastapi import APIRouter, Depends, Query, Security
 from pydantic import Field
 from sqlalchemy.orm import Session
 
-import activities.activity.dependencies as activities_dependencies
-import auth.dependencies as auth_dependencies
 import core.database as core_database
+import core.dependencies as core_dependencies
+import modules.auth.dependencies as auth_dependencies
 from homelab.activity_tags import crud as tags_crud
 from homelab.activity_tags import schema as tags_schema
 
@@ -51,9 +51,8 @@ async def read_activities_tags(
     response_model=tags_schema.ActivityTagsRead,
 )
 async def edit_activity_tags(
-    activity_id: int,
+    activity_id: core_dependencies.PositiveId,
     tags_update: tags_schema.ActivityTagsUpdate,
-    _validate_activity_id: Annotated[Callable, Depends(activities_dependencies.validate_activity_id)],
     _check_scopes: Annotated[Callable, Security(auth_dependencies.check_scopes, scopes=["activities:write"])],
     token_user_id: Annotated[int, Depends(auth_dependencies.get_sub_from_access_token)],
     db: Annotated[Session, Depends(core_database.get_db)],

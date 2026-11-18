@@ -8,7 +8,7 @@ from collections.abc import Iterable, Sequence
 
 from sqlalchemy import Select, distinct, func, select
 
-import activities.activity.models as activities_models
+import modules.activities.activity.models as activities_models
 from homelab.activity_tags.models import ActivityTag
 
 # What upstream CRUD accepts for its ``tags`` filter (ActivityTagKey is a str).

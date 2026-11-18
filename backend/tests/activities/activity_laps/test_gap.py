@@ -3,10 +3,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import activities.activity_laps.crud as crud
-import activities.activity_laps.gap as gap
-import activities.activity_laps.schema as schema
-import activities.activity_streams.constants as stream_constants
+import homelab.lap_gap as lap_gap
+import modules.activities.activity_laps.gap as gap
+import modules.activities.activity_laps.schema as schema
+import modules.activities.activity_streams.constants as stream_constants
 
 _START = datetime(2026, 5, 1, 12, 0, 0, tzinfo=UTC)
 
@@ -107,6 +107,13 @@ def _stream(stream_type: int, waypoints: list[dict]) -> MagicMock:
     return MagicMock(stream_type=stream_type, stream_waypoints=waypoints)
 
 
+def _attach(laps, activity, requester_user_id, db, first_start=_START):
+    """Run the fork's GAP attach with ``db`` answering the activity and first-lap lookups."""
+    db.get.return_value = activity
+    db.scalar.return_value = first_start
+    lap_gap.attach_grade_adjusted_pace(laps, activity.id, requester_user_id, db)
+
+
 class TestAttachGradeAdjustedPace:
     def _db(self, vel, ele):
         db = MagicMock()
@@ -131,7 +138,7 @@ class TestAttachGradeAdjustedPace:
     def test_sets_gap_on_uphill_run(self):
         vel, ele = _streams(600, 3.0, 5)
         laps = [_lap(1, 0, 600.0, 3.0)]
-        crud._attach_grade_adjusted_pace(laps, self._activity(), 1, self._db(vel, ele))
+        _attach(laps, self._activity(), 1, self._db(vel, ele))
         expected_speed = 3.0 * gap.grade_cost_factor(5)
         assert laps[0].grade_adjusted_avg_speed == pytest.approx(expected_speed, rel=1e-3)
         assert laps[0].grade_adjusted_avg_pace == pytest.approx(1 / expected_speed, rel=1e-3)
@@ -139,14 +146,14 @@ class TestAttachGradeAdjustedPace:
     def test_unordered_laps(self):
         vel, ele = _streams(600, 3.0, 0)
         laps = [_lap(2, 300, 300.0, 3.0), _lap(1, 0, 300.0, 3.0)]
-        crud._attach_grade_adjusted_pace(laps, self._activity(), 1, self._db(vel, ele))
+        _attach(laps, self._activity(), 1, self._db(vel, ele))
         assert all(lap.grade_adjusted_avg_speed == pytest.approx(3.0) for lap in laps)
 
     def test_skips_non_running(self):
         vel, ele = _streams(600, 3.0, 5)
         laps = [_lap(1, 0, 600.0, 3.0)]
         db = self._db(vel, ele)
-        crud._attach_grade_adjusted_pace(laps, self._activity(activity_type=4), 1, db)
+        _attach(laps, self._activity(activity_type=4), 1, db)
         assert laps[0].grade_adjusted_avg_speed is None
         db.scalars.assert_not_called()
 
@@ -155,14 +162,14 @@ class TestAttachGradeAdjustedPace:
         vel, ele = _streams(600, 3.0, 5)
         laps = [_lap(1, 0, 600.0, 3.0)]
         db = self._db(vel, ele)
-        crud._attach_grade_adjusted_pace(laps, self._activity(**{hidden: True}), None, db)
+        _attach(laps, self._activity(**{hidden: True}), None, db)
         assert laps[0].grade_adjusted_avg_speed is None
         db.scalars.assert_not_called()
 
     def test_owner_sees_gap_despite_privacy(self):
         vel, ele = _streams(600, 3.0, 5)
         laps = [_lap(1, 0, 600.0, 3.0)]
-        crud._attach_grade_adjusted_pace(laps, self._activity(hide_pace=True), 1, self._db(vel, ele))
+        _attach(laps, self._activity(hide_pace=True), 1, self._db(vel, ele))
         assert laps[0].grade_adjusted_avg_speed is not None
 
     def test_missing_elevation_stream(self):
@@ -170,11 +177,21 @@ class TestAttachGradeAdjustedPace:
         laps = [_lap(1, 0, 600.0, 3.0)]
         db = MagicMock()
         db.scalars.return_value.all.return_value = [_stream(stream_constants.STREAM_TYPE_SPEED, vel)]
-        crud._attach_grade_adjusted_pace(laps, self._activity(), 1, db)
+        _attach(laps, self._activity(), 1, db)
         assert laps[0].grade_adjusted_avg_speed is None
 
     def test_lap_without_speed(self):
         vel, ele = _streams(600, 3.0, 5)
         laps = [_lap(1, 0, 600.0, None)]
-        crud._attach_grade_adjusted_pace(laps, self._activity(), 1, self._db(vel, ele))
+        _attach(laps, self._activity(), 1, self._db(vel, ele))
         assert laps[0].grade_adjusted_avg_speed is None
+
+    def test_later_page_aligns_to_the_first_lap(self):
+        # A page holding only the second (uphill) half must line up with the
+        # streams from the activity's first lap, not from its own first lap.
+        vel, ele = _streams(600, 3.0, 0)
+        for i, waypoint in enumerate(ele[300:]):
+            waypoint["ele"] = 100 + 3.0 * i * 0.05
+        laps = [_lap(2, 300, 300.0, 3.0)]
+        _attach(laps, self._activity(), 1, self._db(vel, ele))
+        assert laps[0].grade_adjusted_avg_speed == pytest.approx(3.0 * gap.grade_cost_factor(5), rel=2e-2)

@@ -21,7 +21,7 @@ from importlib import import_module
 
 from sqlalchemy import select
 
-import users.users.models as users_models
+import modules.users.users.models as users_models
 from core.database import SessionLocal
 from homelab.withings import client as withings_client
 from homelab.withings import garmin_push as withings_garmin_push

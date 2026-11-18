@@ -136,8 +136,9 @@ describe('setActivityTags', () => {
 })
 
 describe('fetchUserActivitiesPage tag filter', () => {
-  it('sends every selected tag to both the list and the count', async () => {
-    vi.mocked(apiFetch).mockResolvedValueOnce([]).mockResolvedValueOnce(0)
+  it('sends every selected tag with the page request', async () => {
+    // Upstream v0.20 answers the page and its total in one request.
+    vi.mocked(apiFetch).mockResolvedValueOnce({ items: [], total: 0 })
 
     await fetchUserActivitiesPage({
       userId: 1,
@@ -154,14 +155,9 @@ describe('fetchUserActivitiesPage tag filter', () => {
       sortOrder: 'desc',
     })
 
-    expect(apiFetch).toHaveBeenNthCalledWith(
-      1,
-      '/activities/user/1/page_number/1/num_records/25?tag=race&tag=long_run&sort_by=start_time&sort_order=desc',
-      expect.anything(),
-    )
-    expect(apiFetch).toHaveBeenNthCalledWith(
-      2,
-      '/activities/number?tag=race&tag=long_run',
+    expect(apiFetch).toHaveBeenCalledTimes(1)
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/activities?tag=race&tag=long_run&sort_by=start_time&sort_order=desc&page_number=1&num_records=25',
       expect.anything(),
     )
   })
@@ -316,7 +312,14 @@ describe('ActivityEditDialog tags', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(vi.mocked(apiFetch).mock.calls.some(([path]) => path === '/activities/edit')).toBe(true)
+    expect(
+      vi
+        .mocked(apiFetch)
+        .mock.calls.some(
+          ([path, init]) =>
+            path === '/activities/1' && (init as { method?: string })?.method === 'PATCH',
+        ),
+    ).toBe(true)
     expect(tagPutCalls()).toHaveLength(0)
   })
 })

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
-import httpx
+import httpx2 as httpx  # upstream replaced httpx with httpx2 in v0.20.0
 
 AUTH_URL = "https://auth-api.8slp.net/v1/tokens"
 CLIENT_API_URL = "https://client-api.8slp.net/v1"

@@ -14,7 +14,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-import health.health_weight.schema as health_weight_schema
+import modules.health.health_weight.schema as health_weight_schema
 
 AMBIGUOUS_ATTRIBS = frozenset({1})
 

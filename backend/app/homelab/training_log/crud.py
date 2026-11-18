@@ -14,15 +14,17 @@ from sqlalchemy import Select, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-import activities.activity.models as activities_models
 import core.config as core_config
 import core.logger as core_logger
+import modules.activities.activity.models as activities_models
 from homelab.activity_tags import schema as tags_schema
 from homelab.activity_tags.models import ActivityTag
 from homelab.lap_intensity import crud as intensity_crud
 from homelab.lap_intensity import schema as intensity_schema
 from homelab.training_load import crud as load_crud
 from homelab.training_log import schema as training_log_schema
+
+logger = core_logger.get_logger(__name__)
 
 # UTC offsets run from -12:00 to +14:00, so a local date D starts no earlier
 # than D 00:00 - 14h UTC and ends no later than D+1 00:00 + 12h UTC.
@@ -33,7 +35,7 @@ Activity = activities_models.Activity
 
 
 def _internal_server_error(err: Exception, context: str) -> HTTPException:
-    core_logger.print_to_log(f"Error in {context}: {err}", "error", exc=err)
+    logger.error(f"Error in {context}: {err}", exc_info=err)
     return HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="Internal Server Error",

@@ -25,7 +25,7 @@ from importlib import import_module
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-import activities.activity.models as activities_models
+import modules.activities.activity.models as activities_models
 from homelab.training_load import crud as load_crud
 from homelab.training_load.models import ActivityLoad, TrainingLoadSettings
 

@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlencode
 
-import httpx
+import httpx2 as httpx  # upstream replaced httpx with httpx2 in v0.20.0
 
 AUTHORIZE_URL = "https://account.withings.com/oauth2_user/authorize2"
 TOKEN_URL = "https://wbsapi.withings.net/v2/oauth2"  # noqa: S105 - a URL, not a secret

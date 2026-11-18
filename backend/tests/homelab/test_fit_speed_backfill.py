@@ -7,8 +7,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-import activities.activity_file_import.utils_fit as utils_fit
-import activities.activity_streams.models as streams_models
+import modules.activities.activity_file_import.fit_utils as utils_fit
+import modules.activities.activity_streams.models as streams_models
 from homelab import fit_speed_backfill
 from tests._helpers.db import create_sqlite_session
 from tests.homelab.test_training_log import _activity
@@ -82,7 +82,9 @@ class TestStreamsFromFrames:
         def fail(*args):
             raise AssertionError("geocoded")
 
-        monkeypatch.setattr(utils_fit.activity_file_import_utils, "resolve_location", fail)
+        # Upstream geocodes in an event subscriber now, not the parser; the
+        # backfill still must not run the session handler.
+        monkeypatch.setattr(utils_fit, "_handle_session_frame", fail)
         session = _Frame("session", start_position_lat=1, start_position_long=1)
         parsed = fit_speed_backfill.streams_from_frames([_record(0, 0, enhanced_speed=2.8), session])
         assert parsed.vel_waypoints[0]["vel"] == 2.8

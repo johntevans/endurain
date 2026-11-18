@@ -29,14 +29,16 @@ from sqlalchemy.orm import Session
 
 import core.logger as core_logger
 import core.scheduler as core_scheduler
-import health.health_sleep.crud as health_sleep_crud
-import health.health_sleep.models as health_sleep_models
-import health.health_sleep.schema as health_sleep_schema
-import users.users.models as users_models
+import modules.health.health_sleep.crud as health_sleep_crud
+import modules.health.health_sleep.models as health_sleep_models
+import modules.health.health_sleep.schema as health_sleep_schema
+import modules.users.users.models as users_models
 from core.database import SessionLocal
 from homelab.eight_sleep import client as eight_sleep_client
 from homelab.eight_sleep import mapping as eight_sleep_mapping
 from homelab.eight_sleep.models import SleepHeartRate, SleepHrv
+
+logger = core_logger.get_logger(__name__)
 
 SOURCE = health_sleep_schema.Source.EIGHT_SLEEP.value
 RECENT_DAYS = 30
@@ -57,10 +59,7 @@ def _target_user_id(db: Session) -> int | None:
     user_ids = db.execute(select(users_models.Users.id)).scalars().all()
     if len(user_ids) == 1:
         return user_ids[0]
-    core_logger.print_to_log(
-        f"Eight Sleep sync: {len(user_ids)} users and EIGHT_SLEEP_ENDURAIN_USER_ID unset; not syncing",
-        "error",
-    )
+    logger.error(f"Eight Sleep sync: {len(user_ids)} users and EIGHT_SLEEP_ENDURAIN_USER_ID unset; not syncing")
     return None
 
 
@@ -115,10 +114,9 @@ def reconcile(
     # like an API change than like every night having been deleted.
     ours = [d for d, row in existing.items() if row.source == SOURCE]
     if not days and ours:
-        core_logger.print_to_log(
+        logger.warning(
             f"Eight Sleep sync: empty response for {window_start}..{window_end} but "
-            f"{len(ours)} Eight Sleep rows exist there; deleting nothing",
-            "warning",
+            f"{len(ours)} Eight Sleep rows exist there; deleting nothing"
         )
         counts["refused empty"] += 1
         return counts
@@ -237,11 +235,9 @@ def _run(label: str, history: bool) -> None:
                 days = eight_sleep_client.fetch_days(window_start, window_end, tz)
             counts = reconcile(user_id, window_start, window_end, days, tz, db)
         summary = ", ".join(f"{n} {k}" for k, n in sorted(counts.items())) or "nothing to do"
-        core_logger.print_to_log(
-            f"Eight Sleep sync ({label}) {window_start}..{window_end}: {len(days)} days fetched; {summary}"
-        )
+        logger.info(f"Eight Sleep sync ({label}) {window_start}..{window_end}: {len(days)} days fetched; {summary}")
     except Exception as err:
-        core_logger.print_to_log(f"Eight Sleep sync ({label}) failed: {type(err).__name__}: {err}", "error")
+        logger.error(f"Eight Sleep sync ({label}) failed: {type(err).__name__}: {err}")
 
 
 def sync_recent() -> None:
@@ -275,7 +271,7 @@ def register_jobs() -> None:
     try:
         startup = sync_recent if _has_rows() else sync_history
     except Exception as err:
-        core_logger.print_to_log(f"Eight Sleep sync: startup check failed: {type(err).__name__}", "error")
+        logger.error(f"Eight Sleep sync: startup check failed: {type(err).__name__}")
         startup = sync_recent
     core_scheduler.scheduler.add_job(
         startup,

@@ -23,8 +23,8 @@ from enum import Enum
 from typing import Any
 from zoneinfo import ZoneInfo
 
-import health.health_sleep.schema as health_sleep_schema
-import health.health_sleep.sleep_scoring as health_sleep_scoring
+import modules.health.health_sleep.schema as health_sleep_schema
+import modules.health.health_sleep.sleep_scoring as health_sleep_scoring
 
 DAYTIME_START_HOUR = 6
 DAYTIME_END_HOUR = 18

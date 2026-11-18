@@ -20,6 +20,8 @@ from homelab.withings import client as withings_client
 from homelab.withings import link as withings_link
 from homelab.withings import tokens as withings_tokens
 
+logger = core_logger.get_logger(__name__)
+
 router = APIRouter()
 
 
@@ -33,7 +35,7 @@ def _page(title: str, message: str, status_code: int = 200) -> HTMLResponse:
     return HTMLResponse(body, status_code=status_code)
 
 
-@router.api_route("/callback", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@router.api_route("/callback", methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
 def withings_callback(
     db: Annotated[Session, Depends(core_database.get_db)],
     code: Annotated[str | None, Query(max_length=512)] = None,
@@ -60,12 +62,12 @@ def withings_callback(
     try:
         tokens = withings_client.exchange_code(cfg, code)
     except withings_client.WithingsError as err:
-        core_logger.print_to_log(f"Withings link for user {user_id} failed: {err}", "error")
+        logger.error(f"Withings link for user {user_id} failed: {err}")
         return _page(
             "Withings not linked",
             f"Withings refused the code ({err}). Codes last 30 seconds; ask for a new link and approve promptly.",
             502,
         )
     withings_tokens.save(user_id, tokens, db)
-    core_logger.print_to_log(f"Withings linked for user {user_id} (Withings user {tokens.withings_userid})")
+    logger.info(f"Withings linked for user {user_id} (Withings user {tokens.withings_userid})")
     return _page("Withings linked", "Endurain can now read your Withings weight. You can close this tab.")

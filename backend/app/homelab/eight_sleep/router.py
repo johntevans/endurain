@@ -14,11 +14,12 @@ from pydantic import BaseModel
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-import auth.dependencies as auth_dependencies
 import core.database as core_database
 import core.dependencies as core_dependencies
-import health.constants as health_constants
-import health.utils as health_utils
+import modules.auth.dependencies as auth_dependencies
+import modules.health.constants as health_constants
+import modules.health.utils as health_utils
+import modules.users.users.utils as users_utils
 from homelab.eight_sleep import schema as metric_schema
 from homelab.eight_sleep.models import SleepHeartRate, SleepHrv
 
@@ -40,7 +41,12 @@ def _metric_router(model: type, read: type[BaseModel], page: type[BaseModel]) ->
         """The owner's nights, newest first."""
         where = [model.user_id == token_user_id]
         if interval is not None:
-            where.append(model.date >= health_utils.get_start_date_for_interval(interval.value))
+            where.append(
+                model.date
+                >= health_utils.get_start_date_for_interval(
+                    interval.value, users_utils.user_local_today(token_user_id, db)
+                )
+            )
         total = db.execute(select(func.count()).select_from(model).where(*where)).scalar_one()
         stmt = select(model).where(*where).order_by(desc(model.date))
         if page_number is not None and num_records is not None:

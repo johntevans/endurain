@@ -3,9 +3,9 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-import activities.activity.models as activity_models
 import core.decorators as core_decorators
-import gears.gear.models as gears_models
+import modules.activities.activity.models as activity_models
+import modules.gears.gear.models as gears_models
 from homelab.gear_mileage import schema as mileage_schema
 
 

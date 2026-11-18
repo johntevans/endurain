@@ -12,16 +12,19 @@ from sqlalchemy import delete, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-import activities.activity.crud as activities_crud
-import activities.activity.models as activities_models
 import core.logger as core_logger
-import server_settings.utils as server_settings_utils
+import modules.activities.activity.crud as activities_crud
+import modules.activities.activity.models as activities_models
+import modules.followers.integration_service as followers_integration
+import modules.server_settings.integration_service as server_settings_integration
 from homelab.activity_tags import schema as tags_schema
 from homelab.activity_tags.models import ActivityTag
 
+logger = core_logger.get_logger(__name__)
+
 
 def _internal_server_error(err: Exception, context: str) -> HTTPException:
-    core_logger.print_to_log(f"Error in {context}: {err}", "error", exc=err)
+    logger.error(f"Error in {context}: {err}", exc_info=err)
     return HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="Internal Server Error",
@@ -78,7 +81,9 @@ def get_visible_activities_tags(
                     activities_models.Activity.id.in_(ids),
                     or_(
                         activities_models.Activity.user_id == requester_user_id,
-                        activities_crud._visible_to_requester_condition(requester_user_id),
+                        activities_crud._visible_to_requester_condition(
+                            followers_integration.list_accepted_followee_ids(requester_user_id, db)
+                        ),
                     ),
                 )
             )
@@ -112,7 +117,7 @@ def get_public_activities_tags(
     """
     ids = _unique_in_order(activity_ids)
     try:
-        if not server_settings_utils.get_server_settings_or_404(db).public_shareable_links:
+        if not server_settings_integration.public_shareable_links_enabled(db):
             return []
         visible = set(
             db.execute(

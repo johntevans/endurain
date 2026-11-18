@@ -15,14 +15,16 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-import activities.activity.models as activities_models
-import activities.activity_streams.constants as streams_constants
-import activities.activity_streams.models as streams_models
 import core.logger as core_logger
-import users.users.models as users_models
+import modules.activities.activity.models as activities_models
+import modules.activities.activity_streams.constants as streams_constants
+import modules.activities.activity_streams.models as streams_models
+import modules.users.users.models as users_models
 from homelab.training_load import calculate
 from homelab.training_load import schema as load_schema
 from homelab.training_load.models import ActivityLoad, TrainingLoadSettings
+
+logger = core_logger.get_logger(__name__)
 
 Activity = activities_models.Activity
 Streams = streams_models.ActivityStreams
@@ -48,7 +50,7 @@ def _aware(value: datetime) -> datetime:
 
 
 def _internal_server_error(err: Exception, context: str) -> HTTPException:
-    core_logger.print_to_log(f"Error in {context}: {err}", "error", exc=err)
+    logger.error(f"Error in {context}: {err}", exc_info=err)
     return HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="Internal Server Error",
@@ -195,7 +197,7 @@ def ensure_loads(user_id: int, activity_ids: Iterable[int], db: Session) -> dict
         return result
     except SQLAlchemyError as err:
         db.rollback()
-        core_logger.print_to_log(f"Error in ensure_loads: {err}", "error", exc=err)
+        logger.error(f"Error in ensure_loads: {err}", exc_info=err)
         try:
             return _snapshot(db.scalars(select(ActivityLoad).where(ActivityLoad.activity_id.in_(ids))).all())
         except SQLAlchemyError:

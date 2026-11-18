@@ -1,6 +1,6 @@
 """Homelab fork: activity types the fork adds to upstream's mapping."""
 
-from activities.activity.utils import ACTIVITY_ID_TO_NAME, ACTIVITY_NAME_TO_ID
+from modules.activities.activity.constants import ACTIVITY_ID_TO_NAME, ACTIVITY_NAME_TO_ID
 
 
 def test_physical_therapy_has_a_fork_only_id():

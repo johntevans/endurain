@@ -19,8 +19,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-import activities.activity.models as activities_models
-import activities.activity_streams.models as streams_models
+import modules.activities.activity.models as activities_models
+import modules.activities.activity_streams.models as streams_models
 from homelab.database import HomelabBase
 from homelab.training_load import calculate, cli, fitness, fitness_crud
 from homelab.training_load import crud as load_crud
@@ -350,8 +350,8 @@ class TestCli:
 
 
 def _build_app(mock_db, user_id: int = OWNER) -> FastAPI:
-    import auth.dependencies as auth_deps
     import core.database as core_db
+    import modules.auth.dependencies as auth_deps
     from homelab.training_load import router
 
     app = FastAPI()
@@ -380,7 +380,7 @@ class TestRoutes:
         assert TestClient(app).get(f"/homelab/training_load{query}").status_code == 422
 
     def test_route_is_registered_in_the_api_router(self):
-        from core.routes import router as api_router
+        from api import router as api_router
 
         app = FastAPI()
         app.include_router(api_router)

@@ -10,10 +10,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-import auth.dependencies as auth_deps
 import core.database as core_db
-import gears.gear.crud as gears_crud
-import gears.gear.models as gears_models
+import modules.auth.dependencies as auth_deps
+import modules.gears.gear.crud as gears_crud
+import modules.gears.gear.models as gears_models
 from homelab.gear_mileage import crud as mileage_crud
 from homelab.gear_mileage import router as mileage_router
 from homelab.gear_mileage.schema import GearMileageRead
@@ -95,7 +95,7 @@ class TestGetGearMileage:
         )
         db.commit()
 
-        activities_distance = gears_crud.get_gear_activity_stats(1, db)["total_distance"]
+        activities_distance = gears_crud.get_gear_activity_stats(1, OWNER, db)["total_distance"]
         assert _mileage(OWNER, db) == {1: activities_distance + 12250}
 
 

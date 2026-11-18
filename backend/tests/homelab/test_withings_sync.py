@@ -9,7 +9,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-import health.health_weight.models as health_weight_models
+import modules.health.health_weight.models as health_weight_models
 from homelab.database import HomelabBase
 from homelab.withings import client as withings_client
 from homelab.withings import mapping as withings_mapping
@@ -249,12 +249,12 @@ class TestGating:
         monkeypatch.setattr(withings_sync, "_target_user_id", lambda _db: USER)
         with (
             patch.object(withings_client, "get_measure_groups") as fetch,
-            patch.object(withings_sync.core_logger, "print_to_log") as log,
+            patch.object(withings_sync, "logger") as log,
         ):
             withings_sync.sync_recent()
 
         fetch.assert_not_called()
-        assert "not linked" in log.call_args.args[0]
+        assert "not linked" in log.warning.call_args.args[0]
 
     def test_a_failed_fetch_writes_nothing_and_logs_failed(self, db, monkeypatch):
         monkeypatch.setattr(withings_client, "config", lambda: CFG)
@@ -268,11 +268,11 @@ class TestGating:
         )
         with (
             patch.object(withings_client, "get_measure_groups", side_effect=withings_client.WithingsError("HTTP 503")),
-            patch.object(withings_sync.core_logger, "print_to_log") as log,
+            patch.object(withings_sync, "logger") as log,
         ):
             withings_sync.sync_recent()
 
-        assert "failed" in log.call_args.args[0]
+        assert "failed" in log.error.call_args.args[0]
         assert date(2026, 10, 8) in _rows(db)
 
     def test_unconfigured_does_nothing(self, monkeypatch):

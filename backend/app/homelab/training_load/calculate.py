@@ -30,7 +30,7 @@ from typing import Any
 
 import numpy as np
 
-from activities.activity_laps import gap
+from modules.activities.activity_laps import gap
 
 # Intervals' Run sport (Run, Trail Run, Virtual Run) plus Endurain's track run
 # and treadmill.

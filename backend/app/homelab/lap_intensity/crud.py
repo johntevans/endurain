@@ -12,18 +12,20 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-import activities.activity.models as activities_models
-import activities.activity_laps.models as laps_models
 import core.logger as core_logger
+import modules.activities.activity.models as activities_models
+import modules.activities.activity_laps.models as laps_models
 from homelab.lap_intensity import schema as intensity_schema
 from homelab.lap_intensity.models import LapIntensityOverride
+
+logger = core_logger.get_logger(__name__)
 
 Activity = activities_models.Activity
 Lap = laps_models.ActivityLaps
 
 
 def _internal_server_error(err: Exception, context: str) -> HTTPException:
-    core_logger.print_to_log(f"Error in {context}: {err}", "error", exc=err)
+    logger.error(f"Error in {context}: {err}", exc_info=err)
     return HTTPException(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         detail="Internal Server Error",

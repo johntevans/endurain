@@ -9,7 +9,7 @@ import { themeColor } from '@/lib/themeColor'
 import HealthChartCard from '@/features/health/components/HealthChartCard.vue'
 import { useHealthMetricChart } from '@/features/health/composables/useHealthMetricChart'
 import { healthChartKind } from '@/features/healthCharts/utils/chartKind'
-import { formatHealthEntryDate } from '@/features/health/utils/healthFormat'
+import { formatHealthEntryDate, localDayOf } from '@/features/health/utils/healthFormat'
 
 const props = defineProps<{
   /** The poop entries to plot (newest first, as returned by the backend). */
@@ -34,7 +34,12 @@ const countsByDay = computed(() => {
     if (!entry.dateTime) {
       continue
     }
-    const day = entry.dateTime.slice(0, 10)
+    // Local day, not the UTC slice: an entry logged late evening in an
+    // eastern timezone belongs to that day, not the next one.
+    const day = localDayOf(entry.dateTime)
+    if (!day) {
+      continue
+    }
     counts.set(day, (counts.get(day) ?? 0) + 1)
   }
   return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b))

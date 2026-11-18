@@ -61,9 +61,7 @@ def test_upgrade_creates_the_schema_first_and_keeps_its_version_table_there():
     assert sql.index("CHECK (tag IN ('race', 'workout', 'long_run'))") < sql.index(widened)
     assert "UPDATE homelab.alembic_version SET version_num='hl0002'" in sql
     # hl0008 widens it again with Daniels' 2Q.
-    widened_2q = (
-        "CHECK (tag IN ('race', 'workout', 'long_run', 'nsm_short', 'nsm_medium', 'nsm_long', 'daniels_2q'))"
-    )
+    widened_2q = "CHECK (tag IN ('race', 'workout', 'long_run', 'nsm_short', 'nsm_medium', 'nsm_long', 'daniels_2q'))"
     assert sql.index(widened) < sql.index(widened_2q)
     assert "UPDATE homelab.alembic_version SET version_num='hl0008'" in sql
     # hl0003: lap intensity overrides, keyed to upstream's laps.

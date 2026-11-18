@@ -13,13 +13,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-import activities.activity.models as activities_models
 import core.logger as core_logger
+import modules.activities.activity.models as activities_models
 from homelab.training_load import crud as load_crud
 from homelab.training_load import fitness
 from homelab.training_load import schema as load_schema
 from homelab.training_load.models import ActivityLoad
 from homelab.training_log.crud import to_local
+
+logger = core_logger.get_logger(__name__)
 
 Activity = activities_models.Activity
 
@@ -69,7 +71,7 @@ def get_fitness(user_id: int, start_date: date, end_date: date, db: Session) -> 
             .where(*in_range)
         ).all()
     except SQLAlchemyError as err:
-        core_logger.print_to_log(f"Error in get_fitness: {err}", "error", exc=err)
+        logger.error(f"Error in get_fitness: {err}", exc_info=err)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal Server Error",
